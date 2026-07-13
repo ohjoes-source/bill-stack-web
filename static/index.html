@@ -215,12 +215,18 @@ body { font-family:'Apple SD Gothic Neo','맑은 고딕',sans-serif;
           <div style="font-size:12px;color:#3A4A6B;line-height:1.7">결재→기안하기→수입지출결의서<br>→ 확인 → 북마클릿 클릭</div>
         </div>
       </div>
-      <div style="display:flex;align-items:center;gap:14px;padding:13px 16px;background:#fff;border-radius:10px;border:1px solid #BFDBFE">
+      <div style="display:flex;align-items:center;gap:14px;padding:13px 16px;background:#fff;border-radius:10px;border:1px solid #BFDBFE;margin-bottom:10px">
         <div style="font-size:12px;color:#3A4A6B;font-weight:600;white-space:nowrap">북마클릿 설치:</div>
         <a id="qs-bookmarklet-link" href="#" style="display:inline-block;padding:8px 18px;background:#1B4FD8;color:#fff;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;cursor:grab;flex-shrink:0">
           📋 BizOffice 자동입력
         </a>
         <div style="font-size:11px;color:#A0AABF;line-height:1.5">← 이 버튼을 북마크 바로<br>드래그해서 설치하세요</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;background:#FFFBEB;border-radius:10px;border:1px solid #FDE68A">
+        <div style="font-size:12px;color:#92400E;flex:1">OCR 없이 북마클릿만 테스트하려면 →</div>
+        <button onclick="testBookmarkletOnly()" style="padding:7px 14px;background:#D97706;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
+          🧪 테스트 PIN 발급
+        </button>
       </div>
     </div>
 
@@ -701,6 +707,24 @@ function fillForm(popup,d){
   }catch(e){popup.alert('입력 오류: '+e.message);}
 }`;
   return 'javascript:' + encodeURIComponent(code);
+}
+
+async function testBookmarkletOnly() {
+  try {
+    const r = await fetch('/api/test-draft', { method: 'POST' });
+    const d = await r.json();
+    currentPin = d.pin;
+    draftMeta = { site: '테스트현장', total: d.data.금액 };
+    const bmHref = buildBookmarklet();
+    q('#bookmarklet-link').href = bmHref;
+    q('#qs-bookmarklet-link').href = bmHref;
+    q('#draft-pin').textContent = currentPin;
+    q('#bookmarklet-guide').style.display = localStorage.getItem('bs_bookmarklet_installed') ? 'none' : '';
+    q('#draft-pin-box').style.display = '';
+    q('#replay-steps').style.display = '';
+    q('#replay-done-row').style.display = 'none';
+    goStep(4);
+  } catch(e) { alert('오류: ' + e.message); }
 }
 
 async function startReplay() {

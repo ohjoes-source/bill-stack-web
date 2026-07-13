@@ -297,6 +297,11 @@ def _register_routes(app: FastAPI):
                         done_count += 1
                         _push(tid, "progress", f"완료 ({done_count}/{len(saved)}): {Path(saved[idx]).name}")
 
+                # 결과 중 error 있으면 SSE error 이벤트로 전달
+                errors = [r.get("error") for r in results if r and r.get("error")]
+                if errors:
+                    _push(tid, "error", " / ".join(errors))
+                    return
                 with _lock:
                     _tasks[tid]["result"] = results
                     _tasks[tid]["file_paths"] = saved

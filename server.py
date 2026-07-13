@@ -146,6 +146,27 @@ def _register_routes(app: FastAPI):
     async def root():
         return HTMLResponse((BASE_DIR / "static" / "index.html").read_text(encoding="utf-8"))
 
+    @app.get("/test", response_class=HTMLResponse)
+    async def ocr_test_page():
+        return HTMLResponse((BASE_DIR / "static" / "ocr_test.html").read_text(encoding="utf-8"))
+
+    @app.post("/api/test-ocr")
+    async def test_ocr(file: UploadFile = File(...)):
+        import tempfile, os
+        suffix = Path(file.filename).suffix if file.filename else ".jpg"
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+        try:
+            tmp.write(await file.read())
+            tmp.close()
+            from ocr_providers.gemini_provider import GeminiOcrProvider
+            provider = GeminiOcrProvider()
+            result = provider.process_file(tmp.name)
+        except Exception as e:
+            result = {"error": str(e), "적요": "", "거래처": "", "금액": 0}
+        finally:
+            os.unlink(tmp.name)
+        return result
+
     # ── 로그인 ───────────────────────────────────────────────────
     class LoginBody(BaseModel):
         # 필드는 AUTH_PROVIDER에 따라 달라짐. 공통 필드:

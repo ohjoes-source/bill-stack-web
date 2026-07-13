@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OCR 테스트</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: #f5f6fa; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+  .card { background: #fff; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,.08); padding: 36px 40px; width: 100%; max-width: 520px; }
+  h2 { font-size: 1.3rem; font-weight: 700; color: #1a1a2e; margin-bottom: 6px; }
+  p.sub { font-size: 0.85rem; color: #888; margin-bottom: 28px; }
+  .drop { border: 2px dashed #c7c9d4; border-radius: 12px; padding: 36px; text-align: center; cursor: pointer; transition: border-color .2s; color: #aaa; font-size: 0.9rem; }
+  .drop:hover, .drop.over { border-color: #4f6ef7; color: #4f6ef7; }
+  .drop input { display: none; }
+  .preview { margin-top: 16px; max-width: 100%; max-height: 240px; border-radius: 8px; display: none; border: 1px solid #eee; }
+  .btn { display: block; width: 100%; margin-top: 20px; padding: 14px; background: #4f6ef7; color: #fff; border: none; border-radius: 10px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: background .2s; }
+  .btn:hover { background: #3a56d4; }
+  .btn:disabled { background: #b0b8e0; cursor: default; }
+  .result { margin-top: 24px; background: #f8f9ff; border-radius: 10px; padding: 20px; display: none; }
+  .result h3 { font-size: 0.9rem; color: #888; margin-bottom: 12px; text-transform: uppercase; letter-spacing: .05em; }
+  .row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #eef0f7; }
+  .row:last-child { border-bottom: none; }
+  .label { font-size: 0.85rem; color: #666; }
+  .value { font-size: 1rem; font-weight: 600; color: #1a1a2e; }
+  .value.amount { color: #4f6ef7; }
+  .error { color: #e74c3c; font-size: 0.9rem; margin-top: 12px; display: none; }
+  .spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid #fff; border-top-color: transparent; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: middle; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .raw { margin-top: 12px; font-size: 0.78rem; color: #aaa; word-break: break-all; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h2>🔍 Gemini OCR 테스트</h2>
+  <p class="sub">영수증 이미지를 올리면 거래처·금액을 추출합니다.</p>
+
+  <div class="drop" id="drop" onclick="document.getElementById('file-input').click()"
+       ondragover="ev(event,'over')" ondragleave="ev(event,'leave')" ondrop="ev(event,'drop')">
+    <input type="file" id="file-input" accept=".jpg,.jpeg,.png,.pdf" onchange="pick(this.files)">
+    📎 클릭하거나 파일을 여기에 드래그하세요
+  </div>
+  <img id="preview" class="preview">
+  <button class="btn" id="btn" onclick="run()" disabled>OCR 시작</button>
+  <div class="error" id="err"></div>
+
+  <div class="result" id="result">
+    <h3>분석 결과</h3>
+    <div class="row"><span class="label">적요 (거래처 요약)</span><span class="value" id="r-jeokyO"></span></div>
+    <div class="row"><span class="label">거래처 (상호명)</span><span class="value" id="r-store"></span></div>
+    <div class="row"><span class="label">금액 (원)</span><span class="value amount" id="r-amount"></span></div>
+    <div class="raw" id="r-raw"></div>
+  </div>
+</div>
+
+<script>
+let selectedFile = null;
+
+function ev(e, type) {
+  e.preventDefault();
+  const drop = document.getElementById('drop');
+  if (type === 'over') drop.classList.add('over');
+  else if (type === 'leave') drop.classList.remove('over');
+  else { drop.classList.remove('over'); pick(e.dataTransfer.files); }
+}
+
+function pick(files) {
+  if (!files.length) return;
+  selectedFile = files[0];
+  document.getElementById('btn').disabled = false;
+  document.getElementById('result').style.display = 'none';
+  document.getElementById('err').style.display = 'none';
+
+  const preview = document.getElementById('preview');
+  if (selectedFile.type.startsWith('image/')) {
+    const fr = new FileReader();
+    fr.onload = e => { preview.src = e.target.result; preview.style.display = 'block'; };
+    fr.readAsDataURL(selectedFile);
+  } else {
+    preview.style.display = 'none';
+  }
+}
+
+async function run() {
+  if (!selectedFile) return;
+  const btn = document.getElementById('btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> 분석 중...';
+  document.getElementById('err').style.display = 'none';
+  document.getElementById('result').style.display = 'none';
+
+  try {
+    const fd = new FormData();
+    fd.append('file', selectedFile);
+    const res = await fetch('/api/test-ocr', { method: 'POST', body: fd });
+    const data = await res.json();
+
+    if (data.error) {
+      showErr('오류: ' + data.error);
+    } else {
+      document.getElementById('r-jeokyO').textContent = data.적요 || '(없음)';
+      document.getElementById('r-store').textContent = data.거래처 || '(없음)';
+      document.getElementById('r-amount').textContent = (data.금액 || 0).toLocaleString() + ' 원';
+      document.getElementById('r-raw').textContent = 'raw: ' + JSON.stringify(data);
+      document.getElementById('result').style.display = 'block';
+    }
+  } catch (e) {
+    showErr('요청 실패: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'OCR 시작';
+  }
+}
+
+function showErr(msg) {
+  const el = document.getElementById('err');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+</script>
+</body>
+</html>

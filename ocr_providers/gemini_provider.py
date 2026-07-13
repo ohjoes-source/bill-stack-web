@@ -56,7 +56,7 @@ class GeminiOcrProvider(OcrProvider):
         if not self.api_key:
             raise RuntimeError("GEMINI_API_KEY 환경변수가 설정되지 않았습니다")
 
-    def process_file(self, filepath: str) -> dict:
+    def process_file(self, filepath: str, _retry: int = 0) -> dict:
         ext = Path(filepath).suffix.lower()
         try:
             mime_map = {
@@ -121,6 +121,10 @@ class GeminiOcrProvider(OcrProvider):
         except json.JSONDecodeError as e:
             return {"error": f"응답 파싱 오류: {e}", "적요": "", "거래처": "", "금액": 0}
         except urllib.error.HTTPError as e:
+            if e.code == 429 and _retry < 2:
+                import time
+                time.sleep(65)
+                return self.process_file(filepath, _retry + 1)
             body = e.read().decode("utf-8", errors="replace")
             return {"error": f"API 오류 {e.code}: {body[:200]}", "적요": "", "거래처": "", "금액": 0}
         except Exception as e:

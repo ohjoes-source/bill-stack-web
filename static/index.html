@@ -190,6 +190,40 @@ body { font-family:'Apple SD Gothic Neo','맑은 고딕',sans-serif;
   </div>
   <div class="content">
 
+    <!-- 빠른 시작 안내 (step 1에서 노출) -->
+    <div id="pane-quickstart" class="card" style="background:linear-gradient(135deg,#EFF6FF 0%,#F0FDF4 100%);border:1px solid #BFDBFE">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div style="font-size:14px;font-weight:800;color:#1B4FD8">빠른 시작 — 사용 방법</div>
+        <button onclick="document.getElementById('pane-quickstart').style.display='none';localStorage.setItem('bs_qs_hidden','1')"
+                style="background:none;border:none;cursor:pointer;color:#A0AABF;font-size:18px;line-height:1">×</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+        <div style="background:#fff;border-radius:9px;padding:13px 14px;border:1px solid #DBEAFE">
+          <div style="font-size:12px;font-weight:700;color:#1B4FD8;margin-bottom:6px">① 영수증 OCR</div>
+          <div style="font-size:12px;color:#3A4A6B;line-height:1.7">파일 업로드 → OCR 분석<br>→ 내역 확인·수정</div>
+        </div>
+        <div style="background:#fff;border-radius:9px;padding:13px 14px;border:1px solid #DBEAFE">
+          <div style="font-size:12px;font-weight:700;color:#1B4FD8;margin-bottom:6px">② 기안하기</div>
+          <div style="font-size:12px;color:#3A4A6B;line-height:1.7">4자리 코드 발급<br>→ BizOffice 북마클릿 실행</div>
+        </div>
+        <div style="background:#fff;border-radius:9px;padding:13px 14px;border:1px solid #DBEAFE">
+          <div style="font-size:12px;font-weight:700;color:#1B4FD8;margin-bottom:6px">③ 북마클릿 설치 (최초 1회)</div>
+          <div style="font-size:12px;color:#3A4A6B;line-height:1.7">아래 버튼을 북마크 바로 드래그<br><span style="color:#A0AABF">Ctrl+Shift+B 로 북마크 바 표시</span></div>
+        </div>
+        <div style="background:#fff;border-radius:9px;padding:13px 14px;border:1px solid #DBEAFE">
+          <div style="font-size:12px;font-weight:700;color:#1B4FD8;margin-bottom:6px">④ 자동 입력</div>
+          <div style="font-size:12px;color:#3A4A6B;line-height:1.7">결재→기안하기→수입지출결의서<br>→ 확인 → 북마클릿 클릭</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:14px;padding:13px 16px;background:#fff;border-radius:10px;border:1px solid #BFDBFE">
+        <div style="font-size:12px;color:#3A4A6B;font-weight:600;white-space:nowrap">북마클릿 설치:</div>
+        <a id="qs-bookmarklet-link" href="#" style="display:inline-block;padding:8px 18px;background:#1B4FD8;color:#fff;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;cursor:grab;flex-shrink:0">
+          📋 BizOffice 자동입력
+        </a>
+        <div style="font-size:11px;color:#A0AABF;line-height:1.5">← 이 버튼을 북마크 바로<br>드래그해서 설치하세요</div>
+      </div>
+    </div>
+
     <!-- 1단계: 업로드 -->
     <div id="pane-upload" class="card">
       <div class="card-title">영수증 업로드</div>
@@ -444,6 +478,9 @@ function showScreen(id) {
 function showMain() {
   showScreen('screen-main');
   q('#topbar-info').textContent = me.author ? `${me.author} (${me.username})` : me.username;
+  // 퀵스타트 북마클릿 링크 초기 세팅
+  const qsLink = q('#qs-bookmarklet-link');
+  if (qsLink) qsLink.href = buildBookmarklet();
   goStep(currentStep);
 }
 
@@ -455,6 +492,9 @@ function goStep(n) {
     if (el) el.style.display = (i + 1 === n) ? '' : 'none';
   });
   if (n !== 5) q('#pane-done').style.display = 'none';
+  // 빠른시작 카드: step 1에서만 표시 (닫기 버튼으로 숨긴 경우 제외)
+  const qs = q('#pane-quickstart');
+  if (qs) qs.style.display = (n === 1 && !localStorage.getItem('bs_qs_hidden')) ? '' : 'none';
   updateStepBar(n);
 }
 
@@ -677,7 +717,9 @@ async function startReplay() {
   goStep(4);
 
   // 북마클릿 링크 세팅
-  q('#bookmarklet-link').href = buildBookmarklet();
+  const bmHref = buildBookmarklet();
+  q('#bookmarklet-link').href = bmHref;
+  q('#qs-bookmarklet-link').href = bmHref;
   q('#draft-pin').textContent = currentPin;
 
   // 최초 방문 여부

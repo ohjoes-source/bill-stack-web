@@ -154,6 +154,14 @@ def _register_routes(app: FastAPI):
     async def fill_page():
         return HTMLResponse((BASE_DIR / "static" / "fill.html").read_text(encoding="utf-8"))
 
+    @app.post("/api/test-draft")
+    async def test_draft():
+        """테스트용: 인증 없이 목업 데이터로 드래프트 생성 후 PIN 반환"""
+        mock = {"적요": "스타벅스", "거래처": "스타벅스커피코리아(주)", "금액": 6500,
+                "_author": "테스트", "_username": "test_user"}
+        pin = _new_draft_pin(mock)
+        return {"pin": pin, "data": mock}
+
     @app.post("/api/test-ocr")
     async def test_ocr(file: UploadFile = File(...)):
         import tempfile, os

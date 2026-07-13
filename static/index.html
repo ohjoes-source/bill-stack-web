@@ -606,14 +606,14 @@ const API_BASE = location.origin;
 let currentPin = null;
 
 // 북마클릿 코드
-// BizOffice 메인 페이지에서 실행 → PIN 입력 → 팝업이 열릴 때 자동으로 폼 채움
+// BizOffice 어디서든 실행 → PIN 입력 → 기안 폼 자동 오픈 → 자동 입력
 function buildBookmarklet() {
   const apiBase = API_BASE;
+  const FORM_URL = 'https://gwp.ktbizoffice.com/ezApproval/DraftUI/DraftUI?formID=2020004933&formURL=2020004933.mht&DraftFlag=DRAFT&formDocType=A01003&susinSN=0&DocState=&ListType=1&AprState=&isTmpDoc=&PAGETYPE=POPUP';
   const code = `(async function(){
-  if(window.__billStackArmed){return alert('이미 대기 중입니다. 결재→기안하기→수입지출결의서→확인을 클릭하세요.');}
-  var pin=prompt('Bill-Stack 코드 (앱에서 확인):');
+  var pin=prompt('Bill-Stack PIN 입력 (앱에서 확인):');
   if(!pin)return;
-  // iframe 방식: 숨김 iframe이 데이터를 postMessage로 전달 (팝업 차단 우회)
+  // 1. bill-stack에서 데이터 가져오기 (숨김 iframe)
   var d=await new Promise(function(resolve,reject){
     var iframe=document.createElement('iframe');
     iframe.src='${apiBase}/fill?pin='+pin.trim();
@@ -621,102 +621,62 @@ function buildBookmarklet() {
     document.body.appendChild(iframe);
     var timer=setTimeout(function(){
       document.body.removeChild(iframe);
-      reject(new Error('시간 초과 (10초): 서버 응답 없음. PIN이 맞는지 확인하세요.'));
-    },10000);
+      reject(new Error('시간 초과 (15초): 서버 응답 없음. PIN 확인하세요.'));
+    },15000);
     function onMsg(e){
       if(e.data&&e.data.type==='billStackData'){
-        clearTimeout(timer);
-        window.removeEventListener('message',onMsg);
-        document.body.removeChild(iframe);
-        resolve(e.data.data);
+        clearTimeout(timer);window.removeEventListener('message',onMsg);
+        document.body.removeChild(iframe);resolve(e.data.data);
       }else if(e.data&&e.data.type==='billStackError'){
-        clearTimeout(timer);
-        window.removeEventListener('message',onMsg);
-        document.body.removeChild(iframe);
-        reject(new Error(e.data.error||'알 수 없는 오류'));
+        clearTimeout(timer);window.removeEventListener('message',onMsg);
+        document.body.removeChild(iframe);reject(new Error(e.data.error||'오류'));
       }
     }
     window.addEventListener('message',onMsg);
   }).catch(function(e){alert('오류: '+e.message);return null;});
   if(!d)return;
   if(d.error)return alert('오류: '+d.error);
-  window.__billStackArmed=true;
-  window.__billStackData=d;
-  // 모든 iframe의 window.open을 가로채서 팝업 감지
-  function hookWin(win){
+  // 2. 기안 폼 자동 오픈 (같은 도메인 → DOM 접근 가능)
+  var popup=window.open('${FORM_URL}','billstack_form','width=1300,height=900,left=60,top=40');
+  if(!popup)return alert('팝업이 차단됩니다. 이 사이트의 팝업 허용 후 다시 시도하세요.');
+  // 3. 폼 + message iframe 로딩 대기
+  var tries=0;
+  var t=setInterval(function(){
+    tries++;
+    if(tries>40){clearInterval(t);alert('폼 로딩 시간 초과');return;}
     try{
-      if(win.__bsHooked)return;
-      win.__bsHooked=true;
-      var _orig=win.open.bind(win);
-      win.open=function(){
-        var popup=_orig.apply(win,arguments);
-        if(!popup)return popup;
-        var tries=0;
-        var t=setInterval(function(){
-          tries++;
-          if(tries>60){clearInterval(t);return;}
-          try{
-            var pd=popup.document;
-            if(!pd||pd.readyState!=='complete')return;
-            clearInterval(t);
-            window.__billStackArmed=false;
-            setTimeout(function(){fillForm(popup,d);},800);
-          }catch(e){}
-        },500);
-        return popup;
-      };
-    }catch(e){}
-  }
-  function hookAll(win){
-    hookWin(win);
-    try{
-      var frames=win.document.querySelectorAll('iframe');
-      for(var i=0;i<frames.length;i++){
-        try{var fw=frames[i].contentWindow;if(fw){hookAll(fw);}}catch(e){}
+      var pd=popup.document;
+      if(!pd||pd.readyState!=='complete')return;
+      var mf=pd.getElementById('message');
+      if(!mf||!mf.contentDocument)return;
+      var fdoc=mf.contentDocument;
+      var eds=fdoc.querySelectorAll('[contenteditable="true"]');
+      if(eds.length<5)return;
+      clearInterval(t);
+      // 4. 필드 입력
+      var rows=d['내역']||[];
+      var today=new Date();
+      var ds=today.getFullYear()+'년 '+String(today.getMonth()+1).padStart(2,'0')+'월 '+String(today.getDate()).padStart(2,'0')+'일';
+      function set(el,val){
+        if(!el)return;
+        el.focus();el.innerText=val;
+        el.dispatchEvent(new Event('input',{bubbles:true}));
+        el.dispatchEvent(new Event('change',{bubbles:true}));
+        el.blur();
       }
+      set(eds[0],ds);                                        // 발의일
+      if(d['현장명'])set(eds[1],d['현장명']);                // 현장명
+      var ti=fdoc.getElementById('frame_doctitle');
+      set(ti,(d['현장명']||rows[0]&&rows[0]['거래처']||'')+' 지출결의'); // 제목
+      rows.forEach(function(row,i){
+        set(eds[5+i*4],row['적요']||'');                     // 적요
+        set(eds[6+i*4],row['거래처']||'');                   // 거래처
+        set(eds[7+i*4],(row['금액']||0).toLocaleString());   // 금액
+      });
+      popup.alert('✅ 자동입력 완료!\\n내용 확인 후 우측 상단 [기안] 버튼을 누르세요.');
     }catch(e){}
-  }
-  hookAll(window);
-  // 나중에 추가되는 iframe도 감지
-  var observer=new MutationObserver(function(){hookAll(window);});
-  observer.observe(document.body,{childList:true,subtree:true});
-  alert('준비됐습니다 ✅\\n결재 → 기안하기 → 수입지출결의서 → 확인을 클릭하세요.\\n팝업이 열리면 자동으로 입력됩니다.');
-})();
-function fillForm(popup,d){
-  try{
-    function fif(doc,sel){
-      if(!doc)return null;
-      var el=doc.querySelector(sel);
-      if(el)return el;
-      var frames=doc.querySelectorAll('iframe');
-      for(var i=0;i<frames.length;i++){
-        try{var r=fif(frames[i].contentDocument,sel);if(r)return r;}catch(e){}
-      }
-      return null;
-    }
-    var rows=d['내역']||[];
-    var total=rows.reduce(function(s,r){return s+(r['금액']||0);},0);
-    var doc=popup.document;
-    var siteEl=fif(doc,'tr:nth-child(2) > td:nth-child(2) > div');
-    if(siteEl){siteEl.click();siteEl.innerText=' '+(d['현장명']||'')+'  ';}
-    var titleEl=fif(doc,'#frame_doctitle');
-    if(titleEl){titleEl.click();titleEl.value=(d['현장명']||'')+' 지출결의';titleEl.dispatchEvent(new Event('input',{bubbles:true}));}
-    rows.forEach(function(row,i){
-      var tr=i+3;
-      var r1=fif(doc,'td > div > table > tbody > tr:nth-child('+tr+') > td > div');
-      if(r1){r1.click();r1.innerText=' '+row['적요'];}
-      var r2=fif(doc,'tr:nth-child('+tr+') > td:nth-child(2) > div');
-      if(r2){r2.click();r2.innerText=' '+row['거래처'];}
-      var r3=fif(doc,'tr:nth-child('+tr+') > td:nth-child(3) > div');
-      if(r3){r3.click();r3.innerText=row['금액'].toLocaleString()+'  ';}
-    });
-    var tot=fif(doc,'tr:nth-child(8) > td:nth-child(3) > div');
-    if(tot){tot.click();tot.innerText=total.toLocaleString()+'  ';}
-    var auth=fif(doc,'tr:nth-child(2) > td:nth-child(4) > div');
-    if(auth){auth.click();auth.innerText=(d['_author']||'')+'  ';}
-    popup.alert('자동입력 완료! 내용 확인 후 기안 버튼을 누르세요.');
-  }catch(e){popup.alert('입력 오류: '+e.message);}
-}`;
+  },500);
+})();`;
   return 'javascript:' + encodeURIComponent(code);
 }
 

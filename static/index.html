@@ -567,8 +567,14 @@ function buildBookmarklet() {
   if(window.__billStackArmed){return alert('이미 대기 중입니다. 결재→기안하기→수입지출결의서→확인을 클릭하세요.');}
   var pin=prompt('Bill-Stack 코드 (앱에서 확인):');
   if(!pin)return;
-  var res=await fetch('${apiBase}/api/draft/'+pin.trim());
-  var d=await res.json();
+  var d;
+  try{
+    var res=await fetch('${apiBase}/api/draft/'+pin.trim(),{mode:'cors'});
+    if(!res.ok)return alert('서버 오류 '+res.status+': PIN을 확인하거나 앱을 새로고침하세요.');
+    d=await res.json();
+  }catch(e){
+    return alert('연결 실패: '+e.message+'\\n\\n※ BizOffice에서 외부 연결이 차단됐을 수 있습니다. 다른 탭(bill-stack-web)에서 북마클릿을 실행해보세요.');
+  }
   if(d.error)return alert('오류: '+d.error);
   window.__billStackArmed=true;
   window.__billStackData=d;

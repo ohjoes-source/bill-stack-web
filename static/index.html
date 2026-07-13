@@ -194,10 +194,10 @@ body { font-family:'Apple SD Gothic Neo','맑은 고딕',sans-serif;
     <div id="pane-quickstart" class="card" style="background:linear-gradient(135deg,#EFF6FF 0%,#F0FDF4 100%);border:1px solid #BFDBFE">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
         <div style="font-size:14px;font-weight:800;color:#1B4FD8">빠른 시작 — 사용 방법</div>
-        <button onclick="document.getElementById('pane-quickstart').style.display='none';localStorage.setItem('bs_qs_hidden','1')"
-                style="background:none;border:none;cursor:pointer;color:#A0AABF;font-size:18px;line-height:1">×</button>
+        <button id="qs-toggle-btn" onclick="toggleQuickstart()"
+                style="background:none;border:none;cursor:pointer;color:#A0AABF;font-size:13px;font-weight:600;padding:4px 8px;border-radius:6px;border:1px solid #D4DFF5">접기 ▲</button>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+      <div id="qs-body" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
         <div style="background:#fff;border-radius:9px;padding:13px 14px;border:1px solid #DBEAFE">
           <div style="font-size:12px;font-weight:700;color:#1B4FD8;margin-bottom:6px">① 영수증 OCR</div>
           <div style="font-size:12px;color:#3A4A6B;line-height:1.7">파일 업로드 → OCR 분석<br>→ 내역 확인·수정</div>
@@ -613,17 +613,28 @@ function buildBookmarklet() {
   if(window.__billStackArmed){return alert('이미 대기 중입니다. 결재→기안하기→수입지출결의서→확인을 클릭하세요.');}
   var pin=prompt('Bill-Stack 코드 (앱에서 확인):');
   if(!pin)return;
-  // postMessage 방식: fill 팝업이 데이터를 전달 (BizOffice CSP 우회)
+  // iframe 방식: 숨김 iframe이 데이터를 postMessage로 전달 (팝업 차단 우회)
   var d=await new Promise(function(resolve,reject){
-    var popup=window.open('${apiBase}/fill?pin='+pin.trim(),'_blank','width=420,height=280,popup=1');
-    if(!popup)return reject(new Error('팝업이 차단됐습니다. 브라우저 주소창의 팝업 허용을 클릭하세요.'));
-    var timer=setTimeout(function(){reject(new Error('시간 초과: 팝업 응답 없음'));},30000);
+    var iframe=document.createElement('iframe');
+    iframe.src='${apiBase}/fill?pin='+pin.trim();
+    iframe.style.cssText='position:fixed;width:0;height:0;border:0;opacity:0;pointer-events:none';
+    document.body.appendChild(iframe);
+    var timer=setTimeout(function(){
+      document.body.removeChild(iframe);
+      reject(new Error('시간 초과 (10초): 서버 응답 없음. PIN이 맞는지 확인하세요.'));
+    },10000);
     function onMsg(e){
-      if(e.source!==popup)return;
-      clearTimeout(timer);
-      window.removeEventListener('message',onMsg);
-      if(e.data.type==='billStackData')resolve(e.data.data);
-      else reject(new Error(e.data.error||'알 수 없는 오류'));
+      if(e.data&&e.data.type==='billStackData'){
+        clearTimeout(timer);
+        window.removeEventListener('message',onMsg);
+        document.body.removeChild(iframe);
+        resolve(e.data.data);
+      }else if(e.data&&e.data.type==='billStackError'){
+        clearTimeout(timer);
+        window.removeEventListener('message',onMsg);
+        document.body.removeChild(iframe);
+        reject(new Error(e.data.error||'알 수 없는 오류'));
+      }
     }
     window.addEventListener('message',onMsg);
   }).catch(function(e){alert('오류: '+e.message);return null;});
@@ -707,6 +718,15 @@ function fillForm(popup,d){
   }catch(e){popup.alert('입력 오류: '+e.message);}
 }`;
   return 'javascript:' + encodeURIComponent(code);
+}
+
+let _qsOpen = true;
+function toggleQuickstart() {
+  _qsOpen = !_qsOpen;
+  // 헤더 다음 모든 자식 요소 토글
+  const card = q('#pane-quickstart');
+  [...card.children].slice(1).forEach(el => el.style.display = _qsOpen ? '' : 'none');
+  q('#qs-toggle-btn').textContent = _qsOpen ? '접기 ▲' : '펼치기 ▼';
 }
 
 async function testBookmarkletOnly() {

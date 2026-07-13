@@ -25,21 +25,22 @@
   const pin = params.get('pin');
   const opener = window.opener;
 
+  // iframe으로 삽입된 경우 parent, 팝업으로 열린 경우 opener 사용
+  const target = window.parent !== window ? window.parent : window.opener;
+
   function done(data) {
-    if (opener) {
-      opener.postMessage({ type: 'billStackData', data }, '*');
-    }
+    if (target) target.postMessage({ type: 'billStackData', data }, '*');
     document.getElementById('spinner').style.display = 'none';
     document.getElementById('msg').textContent = '전달 완료 ✅';
-    document.getElementById('sub').textContent = '창을 닫아도 됩니다';
-    setTimeout(() => window.close(), 1200);
+    document.getElementById('sub').textContent = '잠시 후 닫힙니다';
+    setTimeout(() => window.close(), 800);
   }
 
   function fail(msg) {
     document.getElementById('spinner').style.display = 'none';
     document.getElementById('msg').textContent = '오류: ' + msg;
-    document.getElementById('sub').textContent = '창을 닫고 다시 시도하세요';
-    if (opener) opener.postMessage({ type: 'billStackError', error: msg }, '*');
+    document.getElementById('sub').textContent = '다시 시도하세요';
+    if (target) target.postMessage({ type: 'billStackError', error: msg }, '*');
   }
 
   if (!pin) return fail('PIN 파라미터 없음');

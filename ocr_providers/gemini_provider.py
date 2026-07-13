@@ -59,18 +59,14 @@ class GeminiOcrProvider(OcrProvider):
     def process_file(self, filepath: str) -> dict:
         ext = Path(filepath).suffix.lower()
         try:
-            if ext == ".pdf":
-                img_bytes = _pdf_to_image_bytes(filepath)
-                if img_bytes:
-                    image_b64 = base64.b64encode(img_bytes).decode("utf-8")
-                    mime_type = "image/png"
-                else:
-                    return {"error": "PDF 처리 불가 (pymupdf 미설치)", "적요": "", "거래처": "", "금액": 0}
-            else:
-                mime_map = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}
-                mime_type = mime_map.get(ext, "image/jpeg")
-                with open(filepath, "rb") as f:
-                    image_b64 = base64.b64encode(f.read()).decode("utf-8")
+            mime_map = {
+                ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+                ".png": "image/png", ".webp": "image/webp",
+                ".pdf": "application/pdf",
+            }
+            mime_type = mime_map.get(ext, "image/jpeg")
+            with open(filepath, "rb") as f:
+                image_b64 = base64.b64encode(f.read()).decode("utf-8")
 
             payload = {
                 "contents": [{
@@ -99,14 +95,23 @@ class GeminiOcrProvider(OcrProvider):
 
             text = body["candidates"][0]["content"]["parts"][0]["text"].strip()
 
-            # JSON 파싱
-            start, end = text.find("{"), text.rfind("}")
-            if start != -1 and end != -1:
-                text = text[start:end + 1]
+            # ``` 코드블록 제거
             if "```" in text:
                 text = text.split("```")[1].lstrip("json").strip()
+            # JSON 범위 추출 (배열 또는 객체)
+            arr_start = text.find("[")
+            obj_start = text.find("{")
+            if arr_start != -1 and (obj_start == -1 or arr_start < obj_start):
+                end = text.rfind("]")
+                text = text[arr_start:end + 1]
+            elif obj_start != -1:
+                end = text.rfind("}")
+                text = text[obj_start:end + 1]
 
             data = json.loads(text)
+            # 배열이면 첫 번째 항목 사용
+            if isinstance(data, list):
+                data = data[0] if data else {}
             return {
                 "적요": str(data.get("적요", "")),
                 "거래처": str(data.get("거래처", "")),

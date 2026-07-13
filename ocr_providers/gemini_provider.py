@@ -14,7 +14,7 @@ from typing import Optional
 
 from .base import OcrProvider
 
-GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent"
+GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent"
 
 PROMPT = """한국 영수증 이미지를 분석해서 아래 2가지만 추출하세요.
 

@@ -613,7 +613,10 @@ function buildBookmarklet() {
   const code = `(async function(){
   var pin=prompt('Bill-Stack PIN 입력 (앱에서 확인):');
   if(!pin)return;
-  // 1. bill-stack에서 데이터 가져오기 (숨김 iframe)
+  // 1. 팝업 먼저 열기 (prompt 직후 = 유저 제스처 유효 시점)
+  var popup=window.open('${FORM_URL}','billstack_form','width=1300,height=900,left=60,top=40');
+  if(!popup)return alert('팝업이 차단됩니다. 이 사이트의 팝업 허용 후 다시 시도하세요.');
+  // 2. bill-stack에서 데이터 가져오기 (팝업 로딩과 병렬)
   var d=await new Promise(function(resolve,reject){
     var iframe=document.createElement('iframe');
     iframe.src='${apiBase}/fill?pin='+pin.trim();
@@ -633,12 +636,9 @@ function buildBookmarklet() {
       }
     }
     window.addEventListener('message',onMsg);
-  }).catch(function(e){alert('오류: '+e.message);return null;});
+  }).catch(function(e){popup.close();alert('오류: '+e.message);return null;});
   if(!d)return;
-  if(d.error)return alert('오류: '+d.error);
-  // 2. 기안 폼 자동 오픈 (같은 도메인 → DOM 접근 가능)
-  var popup=window.open('${FORM_URL}','billstack_form','width=1300,height=900,left=60,top=40');
-  if(!popup)return alert('팝업이 차단됩니다. 이 사이트의 팝업 허용 후 다시 시도하세요.');
+  if(d.error){popup.close();return alert('오류: '+d.error);}
   // 3. 폼 + message iframe 로딩 대기
   var tries=0;
   var t=setInterval(function(){

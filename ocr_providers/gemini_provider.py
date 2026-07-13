@@ -14,7 +14,7 @@ from typing import Optional
 
 from .base import OcrProvider
 
-GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-latest:generateContent"
 
 PROMPT = """한국 영수증 이미지를 분석해서 아래 2가지만 추출하세요.
 
@@ -85,12 +85,14 @@ class GeminiOcrProvider(OcrProvider):
                 },
             }
 
-            url = f"{GEMINI_API_URL}?key={self.api_key}"
             req = urllib.request.Request(
-                url,
+                GEMINI_API_URL,
                 data=json.dumps(payload).encode("utf-8"),
                 method="POST",
-                headers={"Content-Type": "application/json"},
+                headers={
+                    "Content-Type": "application/json",
+                    "X-goog-api-key": self.api_key,
+                },
             )
             with urllib.request.urlopen(req, timeout=30) as resp:
                 body = json.loads(resp.read().decode("utf-8"))

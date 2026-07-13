@@ -256,29 +256,32 @@ def _register_routes(app: FastAPI):
         username = user.username
 
         def _run():
-            from ocr_providers import get_provider
-            from concurrent.futures import ThreadPoolExecutor, as_completed
-            provider = get_provider()
-            results = [None] * len(saved)
-            _push(tid, "progress", f"총 {len(saved)}개 파일 동시 분석 중...")
+            try:
+                from ocr_providers import get_provider
+                from concurrent.futures import ThreadPoolExecutor, as_completed
+                provider = get_provider()
+                results = [None] * len(saved)
+                _push(tid, "progress", f"총 {len(saved)}개 파일 동시 분석 중...")
 
-            def _process(idx_fp):
-                idx, fp = idx_fp
-                return idx, provider.process_file(fp)
+                def _process(idx_fp):
+                    idx, fp = idx_fp
+                    return idx, provider.process_file(fp)
 
-            with ThreadPoolExecutor(max_workers=min(len(saved), 5)) as ex:
-                futures = {ex.submit(_process, (i, fp)): i for i, fp in enumerate(saved)}
-                done_count = 0
-                for fut in as_completed(futures):
-                    idx, result = fut.result()
-                    results[idx] = result
-                    done_count += 1
-                    _push(tid, "progress", f"완료 ({done_count}/{len(saved)}): {Path(saved[idx]).name}")
+                with ThreadPoolExecutor(max_workers=min(len(saved), 5)) as ex:
+                    futures = {ex.submit(_process, (i, fp)): i for i, fp in enumerate(saved)}
+                    done_count = 0
+                    for fut in as_completed(futures):
+                        idx, result = fut.result()
+                        results[idx] = result
+                        done_count += 1
+                        _push(tid, "progress", f"완료 ({done_count}/{len(saved)}): {Path(saved[idx]).name}")
 
-            with _lock:
-                _tasks[tid]["result"] = results
-                _tasks[tid]["file_paths"] = saved
-            _push(tid, "done", json.dumps(results, ensure_ascii=False))
+                with _lock:
+                    _tasks[tid]["result"] = results
+                    _tasks[tid]["file_paths"] = saved
+                _push(tid, "done", json.dumps(results, ensure_ascii=False))
+            except Exception as e:
+                _push(tid, "error", f"OCR 처리 오류: {e}")
 
         threading.Thread(target=_run, daemon=True).start()
         return {"task_id": tid}

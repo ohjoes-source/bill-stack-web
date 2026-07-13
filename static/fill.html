@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Bill-Stack 데이터 전달</title>
+<style>
+  body { font-family: 'Segoe UI', sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #f5f6fa; }
+  .card { background: #fff; border-radius: 16px; padding: 36px 40px; text-align: center; box-shadow: 0 4px 24px rgba(0,0,0,.08); max-width: 360px; }
+  .icon { font-size: 48px; margin-bottom: 12px; }
+  h2 { font-size: 1.1rem; color: #1a1a2e; margin-bottom: 8px; }
+  p { font-size: 0.85rem; color: #888; }
+  .spinner { display: inline-block; width: 24px; height: 24px; border: 3px solid #e0e0e0; border-top-color: #4f6ef7; border-radius: 50%; animation: spin .8s linear infinite; margin-bottom: 16px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="spinner" id="spinner"></div>
+  <h2 id="msg">데이터 불러오는 중...</h2>
+  <p id="sub">잠시 후 창이 닫힙니다</p>
+</div>
+<script>
+(async function() {
+  const params = new URLSearchParams(location.search);
+  const pin = params.get('pin');
+  const opener = window.opener;
+
+  function done(data) {
+    if (opener) {
+      opener.postMessage({ type: 'billStackData', data }, '*');
+    }
+    document.getElementById('spinner').style.display = 'none';
+    document.getElementById('msg').textContent = '전달 완료 ✅';
+    document.getElementById('sub').textContent = '창을 닫아도 됩니다';
+    setTimeout(() => window.close(), 1200);
+  }
+
+  function fail(msg) {
+    document.getElementById('spinner').style.display = 'none';
+    document.getElementById('msg').textContent = '오류: ' + msg;
+    document.getElementById('sub').textContent = '창을 닫고 다시 시도하세요';
+    if (opener) opener.postMessage({ type: 'billStackError', error: msg }, '*');
+  }
+
+  if (!pin) return fail('PIN 파라미터 없음');
+
+  try {
+    const res = await fetch('/api/draft/' + pin);
+    if (!res.ok) return fail('서버 오류 ' + res.status);
+    const data = await res.json();
+    if (data.error) return fail(data.error);
+    done(data);
+  } catch (e) {
+    fail(e.message);
+  }
+})();
+</script>
+</body>
+</html>

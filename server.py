@@ -150,6 +150,10 @@ def _register_routes(app: FastAPI):
     async def ocr_test_page():
         return HTMLResponse((BASE_DIR / "static" / "ocr_test.html").read_text(encoding="utf-8"))
 
+    @app.get("/fill", response_class=HTMLResponse)
+    async def fill_page():
+        return HTMLResponse((BASE_DIR / "static" / "fill.html").read_text(encoding="utf-8"))
+
     @app.post("/api/test-ocr")
     async def test_ocr(file: UploadFile = File(...)):
         import tempfile, os

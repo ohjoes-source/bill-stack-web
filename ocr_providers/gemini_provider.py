@@ -81,7 +81,7 @@ class GeminiOcrProvider(OcrProvider):
                 }],
                 "generationConfig": {
                     "temperature": 0,
-                    "maxOutputTokens": 256,
+                    "maxOutputTokens": 1024,
                 },
             }
 

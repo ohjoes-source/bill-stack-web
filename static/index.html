@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>지출결의서 자동화 — Bill-stack</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --blue:#1B4FD8; --blue-dk:#1440B0; --blue-lt:#EFF6FF; --blue-mid:#DBEAFE;
+  --green-ok:#10B981; --red:#DC2626; --red-lt:#FEF2F2;
+  --bg:#F7F9FF; --card:#fff; --border:#D4DFF5;
+  --text:#1E2D45; --sub:#5A6A85; --r:12px;
+}
+body { font-family:'Apple SD Gothic Neo','맑은 고딕',sans-serif;
+       background:var(--bg); color:var(--text); min-height:100vh; }
+
+/* ── screens ── */
+.screen { display:none; }
+.screen.active { display:flex; flex-direction:column; min-height:100vh; }
+
+/* ── topbar ── */
+.topbar { background:var(--blue); color:#fff; padding:0 28px; height:52px;
+          display:flex; align-items:center; justify-content:space-between;
+          position:sticky; top:0; z-index:10; flex-shrink:0; }
+.topbar-logo { font-size:15px; font-weight:800; letter-spacing:-.3px; }
+.topbar-user { font-size:12px; opacity:.85; }
+
+/* ── step bar ── */
+.stepbar { background:var(--blue-lt); border-bottom:1px solid var(--blue-mid);
+           padding:12px 28px; display:flex; align-items:center; flex-shrink:0;
+           overflow-x:auto; }
+.step { display:flex; align-items:center; gap:6px; font-size:12px;
+        font-weight:600; color:#93B4FF; white-space:nowrap; }
+.step.active { color:var(--blue); }
+.step.done   { color:var(--green-ok); }
+.step-num { width:22px; height:22px; border-radius:50%; background:var(--blue-mid);
+            color:#93B4FF; display:flex; align-items:center; justify-content:center;
+            font-size:11px; font-weight:700; flex-shrink:0; }
+.step.active .step-num { background:var(--blue); color:#fff; }
+.step.done   .step-num { background:var(--green-ok); color:#fff; font-size:13px; }
+.step-line { flex:1; height:2px; background:var(--blue-mid); min-width:16px; }
+.step-line.done { background:var(--green-ok); }
+
+/* ── content ── */
+.content { max-width:720px; width:100%; margin:28px auto;
+           padding:0 24px; display:flex; flex-direction:column; gap:20px; flex:1; }
+
+/* ── card ── */
+.card { background:var(--card); border-radius:var(--r);
+        border:1px solid var(--border); padding:24px; }
+.card-title { font-size:14px; font-weight:700; margin-bottom:16px; }
+
+/* ── drop zone ── */
+.drop { border:2px dashed var(--border); border-radius:10px; padding:36px 20px;
+        text-align:center; cursor:pointer; transition:border-color .2s,background .2s; }
+.drop:hover,.drop.over { border-color:var(--blue); background:var(--blue-lt); }
+.drop-icon  { font-size:32px; margin-bottom:8px; }
+.drop-title { font-size:14px; font-weight:600; margin-bottom:4px; }
+.drop-sub   { font-size:12px; color:var(--sub); }
+
+/* ── file list ── */
+.file-list { display:flex; flex-direction:column; gap:6px; margin-top:12px; }
+.file-item { display:flex; align-items:center; gap:10px; padding:9px 12px;
+             background:var(--bg); border-radius:7px; font-size:13px; }
+.file-item .fname { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.file-item .fsize { color:var(--sub); font-size:11px; }
+.rm-btn { background:none; border:none; cursor:pointer; color:#bbb; font-size:14px; line-height:1; }
+.rm-btn:hover { color:var(--red); }
+
+/* ── buttons ── */
+.btn-primary { width:100%; padding:13px; background:var(--blue); color:#fff;
+               border:none; border-radius:8px; font-size:14px; font-weight:700;
+               cursor:pointer; transition:background .15s; margin-top:16px; }
+.btn-primary:hover:not(:disabled) { background:var(--blue-dk); }
+.btn-primary:disabled { opacity:.5; cursor:not-allowed; }
+.btn-secondary { padding:10px 18px; background:#fff; color:var(--blue);
+                 border:1px solid var(--border); border-radius:8px; font-size:13px; cursor:pointer; }
+.btn-secondary:hover { background:var(--blue-lt); }
+.btn-submit { padding:13px 28px; background:var(--green-ok); color:#fff;
+              border:none; border-radius:8px; font-size:14px; font-weight:700; cursor:pointer; }
+.btn-submit:hover:not(:disabled) { background:#0ea574; }
+.btn-submit:disabled { opacity:.5; cursor:not-allowed; }
+.btn-row { display:flex; justify-content:flex-end; gap:10px; margin-top:20px;
+           flex-wrap:wrap; }
+
+/* ── progress list ── */
+.prog-list { display:flex; flex-direction:column; gap:8px; }
+.prog-item { display:flex; align-items:flex-start; gap:10px; padding:10px 12px;
+             border-radius:8px; background:var(--bg); font-size:13px; }
+.prog-item.done      { background:#F0FDF4; }
+.prog-item.error     { background:var(--red-lt); color:var(--red); }
+.prog-item.ready     { background:#FFFBEB; }
+.prog-item.cancelled { background:#F9FAFB; color:var(--sub); }
+.p-icon { font-size:14px; flex-shrink:0; margin-top:1px; }
+.p-msg  { flex:1; line-height:1.5; }
+
+/* ── confirm table ── */
+.site-row { display:flex; align-items:center; gap:10px; margin-bottom:16px; }
+.site-row label { font-size:13px; color:var(--sub); font-weight:600; white-space:nowrap; }
+.site-row input { flex:1; padding:9px 12px; border:1px solid var(--border);
+                  border-radius:7px; font-size:13px; font-family:inherit; outline:none; }
+.site-row input:focus { border-color:var(--blue); }
+.confirm-table { width:100%; border-collapse:collapse; font-size:13px; }
+.confirm-table th { background:var(--bg); padding:9px 10px; text-align:left;
+                    font-weight:600; font-size:12px; color:var(--sub);
+                    border-bottom:1px solid var(--border); }
+.confirm-table td { padding:6px; border-bottom:1px solid #f0f0f0; }
+.confirm-table input { width:100%; padding:6px 8px; border:1px solid transparent;
+                       border-radius:5px; font-size:13px; font-family:inherit;
+                       background:none; outline:none; }
+.confirm-table input:focus { border-color:var(--blue); background:#fff; }
+.total-row { margin-top:12px; text-align:right; font-size:14px; font-weight:700; }
+.total-row span { color:var(--blue); }
+
+/* ── done screen ── */
+.done-box { text-align:center; padding:40px 20px; }
+.done-icon  { font-size:56px; margin-bottom:16px; }
+.done-title { font-size:20px; font-weight:800; color:#065F46; margin-bottom:8px; }
+.done-meta  { font-size:13px; color:var(--sub); line-height:1.8; margin-bottom:24px; }
+
+/* ── blocked screen ── */
+#screen-blocked { align-items:center; justify-content:center; }
+.blocked-card { background:var(--card); border-radius:16px; padding:48px 40px;
+                text-align:center; max-width:420px;
+                box-shadow:0 4px 24px rgba(0,0,0,.08); }
+.blocked-icon  { font-size:48px; margin-bottom:16px; }
+.blocked-title { font-size:18px; font-weight:800; color:var(--blue); margin-bottom:8px; }
+.blocked-sub   { font-size:13px; color:var(--sub); line-height:1.7; }
+
+/* ── setup screen ── */
+#screen-setup { align-items:center; justify-content:center; }
+.setup-card { background:var(--card); border-radius:16px; padding:48px 40px;
+              text-align:center; max-width:400px; width:100%;
+              box-shadow:0 2px 20px rgba(0,0,0,.08); }
+.setup-icon  { font-size:40px; margin-bottom:12px; }
+.setup-title { font-size:17px; font-weight:800; margin-bottom:8px; }
+.setup-desc  { font-size:13px; color:var(--sub); line-height:1.7; margin-bottom:24px; }
+.setup-input { width:100%; padding:12px 14px; border:1px solid var(--border);
+               border-radius:8px; font-size:14px; font-family:inherit; outline:none; }
+.setup-input:focus { border-color:var(--blue); }
+.setup-err { font-size:12px; color:var(--red); margin-top:8px; min-height:16px; }
+
+/* ── spinner ── */
+.spinner { display:inline-block; width:14px; height:14px;
+           border:2px solid rgba(255,255,255,.4); border-top-color:#fff;
+           border-radius:50%; animation:spin .7s linear infinite;
+           vertical-align:middle; margin-right:6px; }
+@keyframes spin { to { transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<!-- ── 차단 화면 ── -->
+<div id="screen-blocked" class="screen">
+  <div class="blocked-card">
+    <div class="blocked-icon">🔒</div>
+    <div class="blocked-title">접근 권한이 없습니다</div>
+    <div class="blocked-sub">이 페이지는 SEON 포털 또는<br>BizOffice 포털 메뉴에서만 이용할 수 있습니다.</div>
+  </div>
+</div>
+
+<!-- ── 이름 설정 화면 (BizOffice 첫 방문) ── -->
+<div id="screen-setup" class="screen">
+  <div class="setup-card">
+    <div class="setup-icon">👋</div>
+    <div class="setup-title">처음 오셨네요!</div>
+    <div class="setup-desc">기안서에 표시될 이름(한글)을 입력해주세요.<br>한 번만 설정하면 다음부터는 바로 시작됩니다.</div>
+    <input id="f-author" class="setup-input" type="text" placeholder="이름 (예: 홍길동)"
+           onkeydown="if(event.key==='Enter')saveAuthor()"/>
+    <div class="setup-err" id="setup-err"></div>
+    <button class="btn-primary" onclick="saveAuthor()">시작하기</button>
+  </div>
+</div>
+
+<!-- ── 메인 화면 (단계 진행형) ── -->
+<div id="screen-main" class="screen">
+  <div class="topbar">
+    <div class="topbar-logo">📋 지출결의서 자동화</div>
+    <div class="topbar-user" id="topbar-info"></div>
+  </div>
+  <div class="stepbar">
+    <div class="step active" id="step-1"><div class="step-num">1</div>업로드</div>
+    <div class="step-line" id="line-1"></div>
+    <div class="step" id="step-2"><div class="step-num">2</div>OCR 분석</div>
+    <div class="step-line" id="line-2"></div>
+    <div class="step" id="step-3"><div class="step-num">3</div>내역 확인</div>
+    <div class="step-line" id="line-3"></div>
+    <div class="step" id="step-4"><div class="step-num">4</div>기안하기</div>
+  </div>
+  <div class="content">
+
+    <!-- 1단계: 업로드 -->
+    <div id="pane-upload" class="card">
+      <div class="card-title">영수증 업로드</div>
+      <div class="drop" id="drop-zone"
+           ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)"
+           onclick="document.getElementById('file-input').click()">
+        <div class="drop-icon">📄</div>
+        <div class="drop-title">파일을 드래그하거나 클릭해서 선택</div>
+        <div class="drop-sub">PDF · JPG · PNG · TIFF 지원 · 여러 파일 동시 가능</div>
+      </div>
+      <input id="file-input" type="file" multiple style="display:none"
+             accept=".pdf,.jpg,.jpeg,.png,.tif,.tiff"
+             onchange="addFiles(this.files)"/>
+      <div class="file-list" id="file-list"></div>
+      <button class="btn-primary" id="btn-ocr" onclick="startOcr()" disabled>▶ OCR 분석 시작</button>
+    </div>
+
+    <!-- 2단계: OCR 진행 -->
+    <div id="pane-ocr" class="card" style="display:none">
+      <div class="card-title">OCR 분석 중...</div>
+      <div class="prog-list" id="ocr-prog"></div>
+    </div>
+
+    <!-- 3단계: 내역 확인 -->
+    <div id="pane-confirm" class="card" style="display:none">
+      <div class="card-title">내역 확인 및 수정</div>
+      <div class="site-row">
+        <label>현장명</label>
+        <input id="site-input" type="text" placeholder="현장명 입력 (필수)"/>
+      </div>
+      <table class="confirm-table">
+        <thead>
+          <tr>
+            <th style="width:34%">적요</th>
+            <th style="width:34%">거래처</th>
+            <th style="width:22%">금액</th>
+            <th style="width:10%"></th>
+          </tr>
+        </thead>
+        <tbody id="confirm-tbody"></tbody>
+      </table>
+      <div class="total-row">합계 <span id="confirm-total">0</span> 원</div>
+      <div class="btn-row">
+        <button class="btn-secondary" onclick="goStep(1)">← 다시 업로드</button>
+        <button class="btn-primary" style="width:auto;margin-top:0;padding:13px 24px"
+                onclick="startReplay()">자동 입력 시작 →</button>
+      </div>
+    </div>
+
+    <!-- 4단계: 기안 -->
+    <div id="pane-replay" class="card" style="display:none">
+      <div class="card-title">기안하기</div>
+
+      <!-- 북마클릿 미설치 안내 (최초 1회) -->
+      <div id="bookmarklet-guide" style="display:none;background:#F0F4FF;border:1px solid #C7D7F5;border-radius:10px;padding:16px 18px;margin-bottom:18px">
+        <div style="font-weight:700;color:#1B4FD8;margin-bottom:8px">📌 북마클릿 1회 설치 필요</div>
+        <div style="font-size:13px;color:#3A4A6B;line-height:1.7;margin-bottom:12px">
+          아래 버튼을 <b>브라우저 북마크 바로 드래그</b>하세요.<br>
+          한 번만 하면 이후엔 필요 없습니다.
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <a id="bookmarklet-link" href="" style="display:inline-block;padding:8px 18px;background:#1B4FD8;color:#fff;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;cursor:grab">
+            📋 BizOffice 자동입력
+          </a>
+          <span style="font-size:12px;color:#5A6A85">← 이걸 북마크 바로 드래그</span>
+        </div>
+        <div style="margin-top:10px;font-size:12px;color:#5A6A85">
+          북마크 바가 안 보이면: Ctrl+Shift+B (Windows) / Cmd+Shift+B (Mac)
+        </div>
+      </div>
+
+      <!-- PIN 안내 -->
+      <div id="draft-pin-box" style="display:none;text-align:center;padding:12px 0 18px">
+        <div style="font-size:13px;color:#5A6A85;margin-bottom:6px">BizOffice에서 북마클릿 클릭 후 입력할 코드</div>
+        <div id="draft-pin" style="font-size:48px;font-weight:900;letter-spacing:12px;color:#1B4FD8;font-variant-numeric:tabular-nums"></div>
+        <div style="font-size:12px;color:#A0AABF;margin-top:4px">30분 유효</div>
+      </div>
+
+      <!-- 순서 안내 -->
+      <ol id="replay-steps" style="display:none;font-size:13px;color:#3A4A6B;line-height:2;padding-left:20px;margin-bottom:18px">
+        <li>BizOffice <b>메인 페이지</b>에서 북마클릿 클릭 → 코드 입력</li>
+        <li>"준비됐습니다" 확인 후 <b>결재 → 기안하기 → 수입지출결의서 → 확인</b></li>
+        <li>팝업이 열리면 <b>자동으로 폼 입력됨</b></li>
+        <li>내용 확인 후 BizOffice에서 직접 <b>기안</b></li>
+      </ol>
+
+      <div class="btn-row">
+        <button class="btn-secondary" onclick="goStep(3)">← 뒤로</button>
+        <button class="btn-submit" id="btn-open-biz" onclick="openBizOffice()">BizOffice 열기 →</button>
+      </div>
+      <div id="replay-done-row" style="display:none;text-align:center;margin-top:12px">
+        <button class="btn-primary" style="max-width:220px;margin:0 auto" onclick="showDone()">기안 완료 확인 →</button>
+      </div>
+    </div>
+
+    <!-- 완료 -->
+    <div id="pane-done" class="card" style="display:none">
+      <div class="done-box">
+        <div class="done-icon">🎉</div>
+        <div class="done-title">기안 완료!</div>
+        <div class="done-meta" id="done-meta"></div>
+        <button class="btn-primary" style="max-width:240px;margin:0 auto"
+                onclick="resetAll()">새 영수증 등록하기</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── 사용법 안내 ──────────────────────────────────────────── -->
+<div id="help-section" style="max-width:720px;margin:32px auto 48px;padding:0 16px">
+  <details style="background:#fff;border-radius:14px;box-shadow:0 2px 12px rgba(0,0,0,.07);overflow:hidden">
+    <summary style="padding:18px 24px;font-size:14px;font-weight:700;color:#1B4FD8;cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px">
+      <span>❓</span> 사용법 안내
+      <span style="margin-left:auto;font-size:12px;color:#A0AABF;font-weight:400">클릭하여 펼치기</span>
+    </summary>
+    <div style="padding:0 24px 24px;font-size:13px;color:#3A4A6B;line-height:1.9;border-top:1px solid #F0F4FF">
+
+      <div style="margin-top:20px;font-weight:800;font-size:14px;color:#1E2D45">📋 전체 흐름</div>
+      <ol style="margin:8px 0 0 18px">
+        <li><b>SEON 포털 또는 BizOffice</b>에서 "영수증 OCR" 카드 클릭 → 자동 로그인</li>
+        <li>영수증 파일(JPG, PNG, PDF) 업로드 → <b>OCR 분석</b></li>
+        <li>결과 확인 · 수정 → <b>현장명 입력</b></li>
+        <li><b>기안하기</b> 클릭 → BizOffice에서 북마클릿 실행 → 자동 입력</li>
+      </ol>
+
+      <div style="margin-top:20px;font-weight:800;font-size:14px;color:#1E2D45">📌 북마클릿 최초 설치 (1회만)</div>
+      <ol style="margin:8px 0 0 18px">
+        <li>Ctrl+Shift+B (Mac: Cmd+Shift+B) 로 북마크 바 표시</li>
+        <li>기안하기 단계에서 <b>파란 버튼 "📋 BizOffice 자동입력"</b>을 북마크 바로 드래그</li>
+        <li>설치 완료 — 이후엔 클릭만 하면 됩니다</li>
+      </ol>
+
+      <div style="margin-top:20px;font-weight:800;font-size:14px;color:#1E2D45">🖊️ 기안하기 단계 순서</div>
+      <ol style="margin:8px 0 0 18px">
+        <li>앱에서 <b>[BizOffice 열기 →]</b> 버튼 클릭 → 새 탭으로 BizOffice 이동</li>
+        <li>BizOffice: <b>결재 → 기안하기 → 수입지출결의서 선택 → 확인</b></li>
+        <li>양식 팝업이 열리면 북마클릿 클릭</li>
+        <li>앱에 표시된 <b>4자리 코드 입력</b> (30분 유효)</li>
+        <li>폼 자동 입력 완료 → 내용 확인 후 BizOffice에서 <b>기안</b></li>
+      </ol>
+
+      <div style="margin-top:20px;font-weight:800;font-size:14px;color:#1E2D45">⚠️ 자주 묻는 질문</div>
+      <div style="margin-top:8px">
+        <b>Q. 로그인 화면이 나와요</b><br>
+        → 반드시 SEON 포털 또는 BizOffice에서 접속해야 합니다. 주소창에 직접 입력하면 차단됩니다.
+      </div>
+      <div style="margin-top:10px">
+        <b>Q. OCR 결과가 이상해요</b><br>
+        → 내역 확인 단계에서 직접 수정할 수 있습니다. 금액·거래처·적요 모두 편집 가능합니다.
+      </div>
+      <div style="margin-top:10px">
+        <b>Q. 코드가 만료됐다고 해요</b><br>
+        → 30분이 지난 경우입니다. 앱으로 돌아와 기안하기를 다시 클릭하면 새 코드가 발급됩니다.
+      </div>
+      <div style="margin-top:10px">
+        <b>Q. 자동입력이 안 돼요</b><br>
+        → 수입지출결의서 양식이 완전히 열린 뒤 북마클릿을 클릭해주세요.
+      </div>
+
+      <div style="margin-top:20px;padding:12px 16px;background:#F0F4FF;border-radius:8px;font-size:12px;color:#5A6A85">
+        문의: SEON 포털 관리자 / 시스템: Bill-stack Web v1.0
+      </div>
+    </div>
+  </details>
+</div>
+
+<script>
+// ── 상태 ─────────────────────────────────────────────────────────
+let token        = localStorage.getItem('bs_token') || '';
+let me           = JSON.parse(localStorage.getItem('bs_me') || '{}');
+let files        = [];
+let ocrTaskId    = null;
+let replayTaskId = null;
+let ocrResults   = [];
+let currentStep  = 1;
+let draftMeta    = {};
+
+// ── 초기화 ───────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  const params   = new URLSearchParams(window.location.search);
+  const ssoToken = params.get('token');
+  const isSetup  = params.get('setup') === '1';
+
+  if (ssoToken) {
+    token = ssoToken;
+    localStorage.setItem('bs_token', token);
+    history.replaceState({}, '', window.location.pathname);
+    if (isSetup) { showScreen('screen-setup'); return; }
+    fetchMeAndShow();
+    return;
+  }
+
+  if (token) { fetchMeAndShow(); return; }
+
+  // 토큰 없음 → 차단
+  showScreen('screen-blocked');
+});
+
+function fetchMeAndShow() {
+  api('/api/me').then(d => {
+    me = d;
+    localStorage.setItem('bs_me', JSON.stringify(d));
+    showMain();
+  }).catch(() => {
+    token = '';
+    localStorage.removeItem('bs_token');
+    showScreen('screen-blocked');
+  });
+}
+
+// ── 이름 설정 ────────────────────────────────────────────────────
+async function saveAuthor() {
+  const author = q('#f-author').value.trim();
+  const errEl  = q('#setup-err');
+  errEl.textContent = '';
+  if (!author) { errEl.textContent = '이름을 입력해주세요'; return; }
+  try {
+    const d = await api('/api/me', 'PATCH', { author });
+    me = d;
+    localStorage.setItem('bs_me', JSON.stringify(d));
+    showMain();
+  } catch(e) { errEl.textContent = e.message; }
+}
+
+// ── API ──────────────────────────────────────────────────────────
+function q(sel) { return document.querySelector(sel); }
+
+async function api(url, method = 'GET', body = null) {
+  const opts = {
+    method,
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+  };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(url, opts);
+  if (r.status === 401) {
+    token = '';
+    localStorage.removeItem('bs_token');
+    showScreen('screen-blocked');
+    throw new Error('세션 만료');
+  }
+  if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.detail || `HTTP ${r.status}`); }
+  return r.json();
+}
+
+// ── 화면 전환 ────────────────────────────────────────────────────
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  q('#' + id).classList.add('active');
+}
+
+function showMain() {
+  showScreen('screen-main');
+  q('#topbar-info').textContent = me.author ? `${me.author} (${me.username})` : me.username;
+  goStep(currentStep);
+}
+
+function goStep(n) {
+  currentStep = n;
+  const panes = ['upload', 'ocr', 'confirm', 'replay'];
+  panes.forEach((p, i) => {
+    const el = q(`#pane-${p}`);
+    if (el) el.style.display = (i + 1 === n) ? '' : 'none';
+  });
+  if (n !== 5) q('#pane-done').style.display = 'none';
+  updateStepBar(n);
+}
+
+function updateStepBar(active) {
+  for (let i = 1; i <= 4; i++) {
+    const s = q(`#step-${i}`);
+    if (!s) continue;
+    s.className = 'step' + (i < active ? ' done' : i === active ? ' active' : '');
+    s.querySelector('.step-num').textContent = i < active ? '✓' : String(i);
+    if (i < 4) {
+      const l = q(`#line-${i}`);
+      if (l) l.className = 'step-line' + (i < active ? ' done' : '');
+    }
+  }
+}
+
+// ── 파일 ─────────────────────────────────────────────────────────
+const EXT = new Set(['.pdf','.jpg','.jpeg','.png','.tif','.tiff']);
+const getExt = name => name.slice(name.lastIndexOf('.')).toLowerCase();
+
+function onDragOver(e)  { e.preventDefault(); q('#drop-zone').classList.add('over'); }
+function onDragLeave()  { q('#drop-zone').classList.remove('over'); }
+function onDrop(e) {
+  e.preventDefault();
+  q('#drop-zone').classList.remove('over');
+  addFiles(e.dataTransfer.files);
+}
+function addFiles(fl) {
+  for (const f of fl) {
+    if (EXT.has(getExt(f.name)) && !files.find(x => x.name === f.name)) files.push(f);
+  }
+  renderFiles();
+  q('#btn-ocr').disabled = files.length === 0;
+}
+function removeFile(name) {
+  files = files.filter(f => f.name !== name);
+  renderFiles();
+  q('#btn-ocr').disabled = files.length === 0;
+}
+function renderFiles() {
+  q('#file-list').innerHTML = files.map(f => `
+    <div class="file-item">
+      <span>📄</span>
+      <span class="fname">${f.name}</span>
+      <span class="fsize">${(f.size/1024).toFixed(0)} KB</span>
+      <button class="rm-btn" onclick="removeFile('${f.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">✕</button>
+    </div>`).join('');
+}
+
+// ── OCR ──────────────────────────────────────────────────────────
+async function startOcr() {
+  const fd = new FormData();
+  files.forEach(f => fd.append('files', f));
+  goStep(2);
+  q('#ocr-prog').innerHTML = '';
+
+  const r = await fetch('/api/ocr', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: fd,
+  });
+  if (!r.ok) { goStep(1); alert('OCR 시작 실패'); return; }
+  const { task_id } = await r.json();
+  ocrTaskId = task_id;
+
+  await streamSSE(`/api/ocr/${task_id}/stream`, q('#ocr-prog'), {
+    done:  data => { ocrResults = JSON.parse(data); showConfirm(ocrResults); },
+    error: msg  => { goStep(1); alert('OCR 오류: ' + msg); },
+  });
+}
+
+// ── 결과 확인 ────────────────────────────────────────────────────
+function showConfirm(rows) {
+  q('#confirm-tbody').innerHTML = rows.map((r, i) => `
+    <tr>
+      <td><input type="text"   data-i="${i}" data-f="적요"   value="${esc(r.적요||'')}"/></td>
+      <td><input type="text"   data-i="${i}" data-f="거래처" value="${esc(r.거래처||'')}"/></td>
+      <td><input type="number" data-i="${i}" data-f="금액"   value="${r.금액||0}"
+                style="text-align:right" oninput="calcTotal()"/></td>
+      <td><button style="background:none;border:none;cursor:pointer;color:#bbb"
+                  onclick="this.closest('tr').remove();calcTotal()">✕</button></td>
+    </tr>`).join('');
+  calcTotal();
+  goStep(3);
+}
+function esc(s) { return String(s).replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+function calcTotal() {
+  const sum = [...q('#confirm-tbody').querySelectorAll('input[data-f="금액"]')]
+    .reduce((a, el) => a + (parseInt(el.value)||0), 0);
+  q('#confirm-total').textContent = sum.toLocaleString();
+}
+function getConfirmed() {
+  const rows = [...q('#confirm-tbody').querySelectorAll('tr')].map(tr => {
+    const ins = tr.querySelectorAll('input');
+    return { 적요: ins[0].value, 거래처: ins[1].value, 금액: parseInt(ins[2].value)||0 };
+  });
+  return { 현장명: q('#site-input').value.trim(), 내역: rows };
+}
+
+// ── 기안 (북마클릿) ──────────────────────────────────────────────
+const BIZ_URL = 'https://gwp.ktbizoffice.com/ezPortal/Main/IndexPortal';
+const API_BASE = location.origin;
+let currentPin = null;
+
+// 북마클릿 코드
+// BizOffice 메인 페이지에서 실행 → PIN 입력 → 팝업이 열릴 때 자동으로 폼 채움
+function buildBookmarklet() {
+  const apiBase = API_BASE;
+  const code = `(async function(){
+  if(window.__billStackArmed){return alert('이미 대기 중입니다. 결재→기안하기→수입지출결의서→확인을 클릭하세요.');}
+  var pin=prompt('Bill-Stack 코드 (앱에서 확인):');
+  if(!pin)return;
+  var res=await fetch('${apiBase}/api/draft/'+pin.trim());
+  var d=await res.json();
+  if(d.error)return alert('오류: '+d.error);
+  window.__billStackArmed=true;
+  window.__billStackData=d;
+  // 모든 iframe의 window.open을 가로채서 팝업 감지
+  function hookWin(win){
+    try{
+      if(win.__bsHooked)return;
+      win.__bsHooked=true;
+      var _orig=win.open.bind(win);
+      win.open=function(){
+        var popup=_orig.apply(win,arguments);
+        if(!popup)return popup;
+        var tries=0;
+        var t=setInterval(function(){
+          tries++;
+          if(tries>60){clearInterval(t);return;}
+          try{
+            var pd=popup.document;
+            if(!pd||pd.readyState!=='complete')return;
+            clearInterval(t);
+            window.__billStackArmed=false;
+            setTimeout(function(){fillForm(popup,d);},800);
+          }catch(e){}
+        },500);
+        return popup;
+      };
+    }catch(e){}
+  }
+  function hookAll(win){
+    hookWin(win);
+    try{
+      var frames=win.document.querySelectorAll('iframe');
+      for(var i=0;i<frames.length;i++){
+        try{var fw=frames[i].contentWindow;if(fw){hookAll(fw);}}catch(e){}
+      }
+    }catch(e){}
+  }
+  hookAll(window);
+  // 나중에 추가되는 iframe도 감지
+  var observer=new MutationObserver(function(){hookAll(window);});
+  observer.observe(document.body,{childList:true,subtree:true});
+  alert('준비됐습니다 ✅\\n결재 → 기안하기 → 수입지출결의서 → 확인을 클릭하세요.\\n팝업이 열리면 자동으로 입력됩니다.');
+})();
+function fillForm(popup,d){
+  try{
+    function fif(doc,sel){
+      if(!doc)return null;
+      var el=doc.querySelector(sel);
+      if(el)return el;
+      var frames=doc.querySelectorAll('iframe');
+      for(var i=0;i<frames.length;i++){
+        try{var r=fif(frames[i].contentDocument,sel);if(r)return r;}catch(e){}
+      }
+      return null;
+    }
+    var rows=d['내역']||[];
+    var total=rows.reduce(function(s,r){return s+(r['금액']||0);},0);
+    var doc=popup.document;
+    var siteEl=fif(doc,'tr:nth-child(2) > td:nth-child(2) > div');
+    if(siteEl){siteEl.click();siteEl.innerText=' '+(d['현장명']||'')+'  ';}
+    var titleEl=fif(doc,'#frame_doctitle');
+    if(titleEl){titleEl.click();titleEl.value=(d['현장명']||'')+' 지출결의';titleEl.dispatchEvent(new Event('input',{bubbles:true}));}
+    rows.forEach(function(row,i){
+      var tr=i+3;
+      var r1=fif(doc,'td > div > table > tbody > tr:nth-child('+tr+') > td > div');
+      if(r1){r1.click();r1.innerText=' '+row['적요'];}
+      var r2=fif(doc,'tr:nth-child('+tr+') > td:nth-child(2) > div');
+      if(r2){r2.click();r2.innerText=' '+row['거래처'];}
+      var r3=fif(doc,'tr:nth-child('+tr+') > td:nth-child(3) > div');
+      if(r3){r3.click();r3.innerText=row['금액'].toLocaleString()+'  ';}
+    });
+    var tot=fif(doc,'tr:nth-child(8) > td:nth-child(3) > div');
+    if(tot){tot.click();tot.innerText=total.toLocaleString()+'  ';}
+    var auth=fif(doc,'tr:nth-child(2) > td:nth-child(4) > div');
+    if(auth){auth.click();auth.innerText=(d['_author']||'')+'  ';}
+    popup.alert('자동입력 완료! 내용 확인 후 기안 버튼을 누르세요.');
+  }catch(e){popup.alert('입력 오류: '+e.message);}
+}`;
+  return 'javascript:' + encodeURIComponent(code);
+}
+
+async function startReplay() {
+  const data = getConfirmed();
+  if (!data.현장명) { alert('현장명을 입력해주세요'); return; }
+  if (!data.내역.length) { alert('내역 항목이 없습니다'); return; }
+  draftMeta = { site: data.현장명, total: data.내역.reduce((s, r) => s + r.금액, 0) };
+
+  try {
+    const r = await api('/api/draft', 'POST', { result_data: data });
+    currentPin = r.pin;
+  } catch(e) { alert('오류: ' + e.message); return; }
+
+  goStep(4);
+
+  // 북마클릿 링크 세팅
+  q('#bookmarklet-link').href = buildBookmarklet();
+  q('#draft-pin').textContent = currentPin;
+
+  // 최초 방문 여부
+  const installed = localStorage.getItem('bs_bookmarklet_installed');
+  q('#bookmarklet-guide').style.display = installed ? 'none' : '';
+  q('#draft-pin-box').style.display = '';
+  q('#replay-steps').style.display = '';
+  q('#replay-done-row').style.display = '';
+}
+
+function openBizOffice() {
+  localStorage.setItem('bs_bookmarklet_installed', '1');
+  q('#bookmarklet-guide').style.display = 'none';
+  window.open(BIZ_URL, '_blank');
+}
+
+function showDone() {
+  q('#done-meta').innerHTML =
+    `${draftMeta.site} · ${draftMeta.total.toLocaleString()}원<br>지출결의서가 성공적으로 제출되었습니다.`;
+  ['upload','ocr','confirm','replay'].forEach(p => {
+    const el = q(`#pane-${p}`); if (el) el.style.display = 'none';
+  });
+  q('#pane-done').style.display = '';
+  updateStepBar(5);
+}
+
+async function cancelReplay() { goStep(3); }
+
+function resetAll() {
+  files = []; ocrResults = []; ocrTaskId = null; replayTaskId = null; draftMeta = {};
+  currentStep = 1;
+  q('#file-list').innerHTML = '';
+  q('#btn-ocr').disabled = true;
+  q('#site-input').value = '';
+  q('#pane-done').style.display = 'none';
+  goStep(1);
+}
+
+// ── SSE 스트리밍 ─────────────────────────────────────────────────
+async function streamSSE(url, listEl, handlers) {
+  const ICONS = { info:'⏳', done:'✅', ready:'🟡', error:'❌', cancelled:'🚫', progress:'⏳' };
+  const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  const reader = response.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value);
+    const parts = buf.split('\n\n');
+    buf = parts.pop();
+    for (const part of parts) {
+      const line = part.replace(/^data: /, '').trim();
+      if (!line) continue;
+      try {
+        const ev = JSON.parse(line);
+        const el = document.createElement('div');
+        el.className = `prog-item ${ev.event}`;
+        el.innerHTML = `<span class="p-icon">${ICONS[ev.event]||'•'}</span>
+                        <span class="p-msg">${ev.event === 'done' ? '완료' : ev.message}</span>`;
+        listEl.appendChild(el);
+        listEl.scrollTop = listEl.scrollHeight;
+        if (handlers[ev.event]) handlers[ev.event](ev.message);
+      } catch(e) {}
+    }
+  }
+}
+</script>
+</body>
+</html>

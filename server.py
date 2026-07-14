@@ -95,33 +95,20 @@ def _load_user_config(username: str) -> dict | None:
 _tasks: dict = {}
 _lock = threading.Lock()
 
-# ── 기안 임시 저장소 (PIN 기반, 파일 영속화 - 서버 재시작에도 유지) ──
+# ── 기안 임시 저장소 (PIN 기반, 30분 만료) ──────────────────────
 import random
-_DRAFTS_FILE = DATA_DIR / "drafts.json"
-
-def _load_drafts() -> dict:
-    try:
-        if _DRAFTS_FILE.exists():
-            return json.loads(_DRAFTS_FILE.read_text(encoding="utf-8"))
-    except Exception:
-        pass
-    return {}
-
-def _save_drafts(drafts: dict):
-    try:
-        _DRAFTS_FILE.write_text(json.dumps(drafts), encoding="utf-8")
-    except Exception:
-        pass
+_drafts: dict = {}  # {pin: {data, expires_at}}
 
 def _new_draft_pin(data: dict) -> str:
     pin = str(random.randint(1000, 9999))
-    expires = (datetime.utcnow() + timedelta(minutes=30)).isoformat()
+    expires = datetime.utcnow() + timedelta(minutes=30)
     with _lock:
-        drafts = _load_drafts()
-        now = datetime.utcnow().isoformat()
-        drafts = {k: v for k, v in drafts.items() if v["expires_at"] > now}
-        drafts[pin] = {"data": data, "expires_at": expires}
-        _save_drafts(drafts)
+        # 만료된 항목 정리
+        now = datetime.utcnow()
+        expired = [k for k, v in _drafts.items() if v["expires_at"] < now]
+        for k in expired:
+            del _drafts[k]
+        _drafts[pin] = {"data": data, "expires_at": expires}
     return pin
 
 
@@ -354,14 +341,12 @@ def _register_routes(app: FastAPI):
     @app.get("/api/draft/{pin}")
     async def get_draft(pin: str):
         with _lock:
-            drafts = _load_drafts()
-            draft = drafts.get(pin)
+            draft = _drafts.get(pin)
         if not draft:
             return {"error": "코드가 없거나 만료됐습니다 (30분 유효)"}
-        if datetime.utcnow().isoformat() > draft["expires_at"]:
+        if datetime.utcnow() > draft["expires_at"]:
             with _lock:
-                drafts.pop(pin, None)
-                _save_drafts(drafts)
+                _drafts.pop(pin, None)
             return {"error": "코드가 만료됐습니다"}
         return draft["data"]
 

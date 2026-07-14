@@ -8,3 +8,4 @@ ocr_test/receipts/
 ocr_test/results/
 .planning/
 docs/
+.gstack/

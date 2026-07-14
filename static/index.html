@@ -687,9 +687,14 @@ function buildBookmarklet() {
         var mf=pd.getElementById('message');
         if(!mf)return;
         var fdoc=mf.contentDocument;
-        if(!fdoc||fdoc.readyState!=='complete')return;
+        if(!fdoc||!fdoc.body)return;
         var eds=fdoc.querySelectorAll('[contenteditable="true"]');
         if(eds.length<1)return;
+        var rows=d['내역']||[];
+        var siteEl=fdoc.querySelector('tr:nth-child(2) > td:nth-child(2) > div')||eds[0];
+        var titleEl=fdoc.getElementById('frame_doctitle');
+        var firstRowEl=rows.length ? fdoc.querySelector('td > div > table > tbody > tr:nth-child(3) > td > div') : true;
+        if(!siteEl||!titleEl||!firstRowEl)return;
         filled=true;clearInterval(t);
         popup.focus();
         mf.contentWindow.focus();
@@ -722,9 +727,8 @@ function buildBookmarklet() {
         }
         var now=new Date();
         var ds=now.getFullYear()+'.'+(('0'+(now.getMonth()+1)).slice(-2))+'.'+(('0'+now.getDate()).slice(-2));
-        ins(fdoc.querySelector('tr:nth-child(2) > td:nth-child(2) > div')||eds[0],d['현장명']||'');
-        ins(fdoc.getElementById('frame_doctitle'),(d['현장명']||'')+' 지출결의');
-        var rows=d['내역']||[];
+        ins(siteEl,d['현장명']||'');
+        ins(titleEl,(d['현장명']||'')+' 지출결의');
         rows.forEach(function(row,i){
           var tr=i+3;
           ins(fdoc.querySelector('td > div > table > tbody > tr:nth-child('+tr+') > td > div'),row['적요']||'');

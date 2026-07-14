@@ -633,8 +633,8 @@ function buildBookmarklet() {
     document.body.appendChild(iframe);
     var timer=setTimeout(function(){
       document.body.removeChild(iframe);
-      reject(new Error('시간 초과 (15초): 서버 응답 없음. PIN 확인하세요.'));
-    },15000);
+      reject(new Error('시간 초과 (20초): 서버 응답 없음. PIN 확인하세요.'));
+    },20000);
     function onMsg(e){
       if(e.data&&e.data.type==='billStackData'){
         clearTimeout(timer);window.removeEventListener('message',onMsg);
@@ -666,39 +666,58 @@ function buildBookmarklet() {
       if(eds.length<5)return;
       filled=true;
       clearInterval(t);
-      // 4. script 주입 방식으로 popup 컨텍스트에서 실행 (execCommand 정상 동작)
+      // 4. 포커스 체인으로 popup 컨텍스트 활성화 → execCommand 정상 동작
+      // (script injection 불필요 — CSP 우회)
+      popup.focus();
+      mf.contentWindow.focus();
       var rows=d['내역']||[];
       var today=new Date();
       var ds=today.getFullYear()+'년 '+String(today.getMonth()+1).padStart(2,'0')+'월 '+String(today.getDate()).padStart(2,'0')+'일';
-      var payload={ds:ds,현장명:d['현장명']||'',rows:rows};
-      var sc=pd.createElement('script');
-      sc.textContent='(function(p){'
-        +'var f=document.getElementById("message");'
-        +'var fdoc=f.contentDocument;'
-        +'var eds=fdoc.querySelectorAll("[contenteditable=\\"true\\"]");'
-        +'function set(el,val){'
-        +'  if(!el||val===undefined)return;'
-        +'  el.focus();'
-        +'  var sel=fdoc.getSelection?fdoc.getSelection():window.getSelection();'
-        +'  var r=fdoc.createRange();r.selectNodeContents(el);'
-        +'  sel.removeAllRanges();sel.addRange(r);'
-        +'  fdoc.execCommand("insertText",false,val);'
-        +'  el.blur();'
-        +'}'
-        +'set(eds[0],p.ds);'
-        +'if(p.현장명)set(eds[1],p.현장명);'
-        +'var ti=fdoc.getElementById("frame_doctitle");'
-        +'set(ti,(p.현장명||p.rows[0]&&p.rows[0]["거래처"]||"")+\' 지출결의\');'
-        +'p.rows.forEach(function(row,i){'
-        +'  set(eds[5+i*4],row["적요"]||"");'
-        +'  set(eds[6+i*4],row["거래처"]||"");'
-        +'  set(eds[7+i*4],(row["금액"]||0).toLocaleString());'
-        +'});'
-        +'alert("✅ 자동입력 완료!\\n내용 확인 후 [기안] 버튼을 누르세요.");'
-        +'})('+JSON.stringify(payload)+');';
-      pd.head.appendChild(sc);
+      function ins(el,val){
+        if(!el||val==null)return;
+        var s=String(val);
+        try{
+          el.focus();
+          var sel=mf.contentWindow.getSelection();
+          if(sel){
+            var r=fdoc.createRange();
+            r.selectNodeContents(el);
+            sel.removeAllRanges();
+            sel.addRange(r);
+            fdoc.execCommand('insertText',false,s);
+          }
+          // 입력값 반영 확인 후 fallback
+          if(el.textContent.trim()!==s.trim()){
+            el.innerHTML='';
+            el.appendChild(fdoc.createTextNode(s));
+            try{el.dispatchEvent(new mf.contentWindow.InputEvent('input',{bubbles:true,data:s}));}catch(e){}
+            try{el.dispatchEvent(new mf.contentWindow.Event('change',{bubbles:true}));}catch(e){}
+          }
+        }catch(ex){
+          try{
+            el.textContent=s;
+            el.dispatchEvent(new mf.contentWindow.InputEvent('input',{bubbles:true}));
+          }catch(e2){}
+        }
+        el.blur();
+      }
+      ins(eds[0],ds);
+      if(d['현장명'])ins(eds[1],d['현장명']);
+      var ti=fdoc.getElementById('frame_doctitle');
+      ins(ti,(d['현장명']||rows[0]&&rows[0]['거래처']||'')+' 지출결의');
+      rows.forEach(function(row,i){
+        ins(eds[5+i*4],row['적요']||'');
+        ins(eds[6+i*4],row['거래처']||'');
+        ins(eds[7+i*4],(row['금액']||0).toLocaleString());
+      });
+      // 결과 요약
+      var msg='✅ 자동입력 완료!\n';
+      msg+='날짜: '+ds+'\n';
+      if(d['현장명'])msg+='현장명: '+d['현장명']+'\n';
+      msg+=rows.length+'건 입력\n내용 확인 후 [기안] 버튼을 누르세요.';
+      alert(msg);
     }catch(e){
-      if(tries>55){clearInterval(t);alert('오류: '+e.message);}
+      if(tries>55){clearInterval(t);alert('오류: '+e.message+'\n\neds 개수: '+(typeof eds!=='undefined'?eds.length:'미확인'));}
     }
   },500);
 })();`;

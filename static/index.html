@@ -688,10 +688,8 @@ function buildBookmarklet() {
         if(!mf)return;
         var fdoc=mf.contentDocument;
         if(!fdoc||!fdoc.body)return;
-        var eds=fdoc.querySelectorAll('[contenteditable="true"]');
-        if(eds.length<1)return;
         var rows=d['내역']||[];
-        var siteEl=fdoc.querySelector('tr:nth-child(2) > td:nth-child(2) > div')||eds[0];
+        var siteEl=fdoc.querySelector('tr:nth-child(2) > td:nth-child(2) > div');
         var titleEl=fdoc.getElementById('frame_doctitle');
         var firstRowEl=rows.length ? fdoc.querySelector('td > div > table > tbody > tr:nth-child(3) > td > div') : true;
         if(!siteEl||!titleEl||!firstRowEl)return;
@@ -709,6 +707,7 @@ function buildBookmarklet() {
               r.selectNodeContents(el);
               sel.removeAllRanges();
               sel.addRange(r);
+              try{el.dispatchEvent(new mf.contentWindow.InputEvent('beforeinput',{bubbles:true,inputType:'insertText',data:s}));}catch(e){}
               fdoc.execCommand('insertText',false,s);
             }
             if(el.textContent.trim()!==s.trim()){

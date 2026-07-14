@@ -283,26 +283,25 @@ body { font-family:'Apple SD Gothic Neo','맑은 고딕',sans-serif;
     <div id="pane-replay" class="card" style="display:none">
       <div class="card-title">기안하기</div>
 
-      <!-- STEP A: 북마클릿 설치 (항상 표시) -->
-      <div style="background:#EFF4FF;border:1.5px solid #BFDBFE;border-radius:12px;padding:16px 18px;margin-bottom:14px">
-        <div style="font-weight:700;color:#1B4FD8;font-size:13px;margin-bottom:10px">① 북마클릿을 북마크 바에 드래그 (최초 1회)</div>
-        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px">
-          <a id="bookmarklet-link" href="" style="display:inline-block;padding:9px 20px;background:#1B4FD8;color:#fff;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;cursor:grab;flex-shrink:0">
-            📋 BizOffice 자동입력
-          </a>
-          <span style="font-size:12px;color:#5A6A85;line-height:1.5">← 이 버튼을 마우스로 잡아서<br>상단 북마크 바에 놓으세요</span>
-        </div>
-        <div style="font-size:11px;color:#A0AABF">북마크 바가 안 보이면 Ctrl+Shift+B (Mac: Cmd+Shift+B)</div>
+      <!-- 코드 복사 박스 -->
+      <div style="background:#EFF4FF;border:1.5px solid #BFDBFE;border-radius:12px;padding:16px 18px;margin-bottom:14px;text-align:center">
+        <div style="font-weight:700;color:#1B4FD8;font-size:13px;margin-bottom:12px">① 아래 버튼으로 코드를 복사하세요</div>
+        <button id="copy-code-btn" onclick="copyFillCode()"
+          style="padding:12px 28px;background:#1B4FD8;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;width:100%;max-width:280px">
+          📋 자동입력 코드 복사
+        </button>
+        <div id="copy-ok" style="display:none;margin-top:8px;font-size:13px;color:#16A34A;font-weight:700">✅ 복사됨!</div>
       </div>
 
-      <!-- STEP B: BizOffice 실행 -->
+      <!-- 실행 안내 -->
       <div style="background:#F0FDF4;border:1.5px solid #86EFAC;border-radius:12px;padding:16px 18px;margin-bottom:16px">
-        <div style="font-weight:700;color:#16A34A;font-size:13px;margin-bottom:10px">② BizOffice에서 북마클릿 클릭</div>
-        <ol id="replay-steps" style="font-size:13px;color:#3A4A6B;line-height:2.1;padding-left:18px;margin:0">
-          <li>아래 <b>[BizOffice 열기]</b> 버튼으로 BizOffice 이동</li>
-          <li>북마크 바에서 <b>📋 BizOffice 자동입력</b> 클릭</li>
+        <div style="font-weight:700;color:#16A34A;font-size:13px;margin-bottom:10px">② BizOffice에서 실행</div>
+        <ol id="replay-steps" style="font-size:13px;color:#3A4A6B;line-height:2.2;padding-left:18px;margin:0">
+          <li>아래 <b>[BizOffice 열기]</b> 클릭 → BizOffice 탭으로 이동</li>
+          <li>키보드 <b>F12</b> 눌러서 개발자 도구 열기</li>
+          <li>상단 탭에서 <b>Console</b> 클릭</li>
+          <li><b>Ctrl+V</b> 붙여넣기 → <b>Enter</b></li>
           <li>지출결의서 팝업이 열리며 <b>자동 입력됩니다</b></li>
-          <li>내용 확인 후 BizOffice에서 직접 <b>기안</b></li>
         </ol>
       </div>
 
@@ -316,6 +315,7 @@ body { font-family:'Apple SD Gothic Neo','맑은 고딕',sans-serif;
       <!-- 숨김: JS에서 참조하는 요소 유지 -->
       <div id="draft-pin-box" style="display:none"><div id="draft-pin"></div></div>
       <div id="bookmarklet-guide" style="display:none"></div>
+      <a id="bookmarklet-link" href="" style="display:none"></a>
     </div>
 
     <!-- 완료 -->
@@ -687,17 +687,18 @@ function toggleQuickstart() {
   q('#qs-toggle-btn').textContent = _qsOpen ? '접기 ▲' : '펼치기 ▼';
 }
 
+let _currentFillCode = '';
+
+function setFillCodeFromData(data) {
+  const href = buildBookmarklet(data);
+  // javascript: 접두사 제거 → 콘솔에 붙여넣기 가능한 순수 JS
+  _currentFillCode = decodeURIComponent(href.replace('javascript:', ''));
+}
+
 async function testBookmarkletOnly() {
   const testData = { 현장명: '테스트현장', 내역: [{ 적요: '스타벅스', 거래처: '스타벅스커피코리아(주)', 금액: 6500 }] };
   draftMeta = { site: '테스트현장', total: 6500 };
-  const bmHref = buildBookmarklet(testData);
-  q('#bookmarklet-link').href = bmHref;
-  q('#qs-bookmarklet-link').href = bmHref;
-  const hl1 = q('#help-bookmarklet-link'); if (hl1) hl1.href = bmHref;
-  q('#draft-pin').textContent = '(테스트 데이터 내장)';
-  q('#bookmarklet-guide').style.display = localStorage.getItem('bs_bookmarklet_installed') ? 'none' : '';
-  q('#draft-pin-box').style.display = '';
-  q('#replay-steps').style.display = '';
+  setFillCodeFromData(testData);
   q('#replay-done-row').style.display = 'none';
   goStep(4);
 }
@@ -707,27 +708,36 @@ async function startReplay() {
   if (!data.현장명) { alert('현장명을 입력해주세요'); return; }
   if (!data.내역.length) { alert('내역 항목이 없습니다'); return; }
   draftMeta = { site: data.현장명, total: data.내역.reduce((s, r) => s + r.금액, 0) };
-
-  goStep(4);
-
-  // 데이터 내장 북마클릿 생성 (서버/PIN 불필요)
-  const bmHref = buildBookmarklet(data);
-  q('#bookmarklet-link').href = bmHref;
-  q('#qs-bookmarklet-link').href = bmHref;
-  const hl2 = q('#help-bookmarklet-link'); if (hl2) hl2.href = bmHref;
-  q('#draft-pin').textContent = '(북마클릿에 내장)';
-
-  // 최초 방문 여부
-  const installed = localStorage.getItem('bs_bookmarklet_installed');
-  q('#bookmarklet-guide').style.display = installed ? 'none' : '';
-  q('#draft-pin-box').style.display = '';
-  q('#replay-steps').style.display = '';
+  setFillCodeFromData(data);
   q('#replay-done-row').style.display = '';
+  goStep(4);
+}
+
+function copyFillCode() {
+  if (!_currentFillCode) {
+    alert('먼저 앱에서 영수증 OCR 후 기안하기를 눌러주세요.');
+    return;
+  }
+  navigator.clipboard.writeText(_currentFillCode).then(() => {
+    const ok = q('#copy-ok');
+    ok.style.display = '';
+    setTimeout(() => { ok.style.display = 'none'; }, 3000);
+  }).catch(() => {
+    // clipboard API 실패 시 textarea로 대체
+    const ta = document.createElement('textarea');
+    ta.value = _currentFillCode;
+    ta.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    const ok = q('#copy-ok');
+    ok.style.display = '';
+    setTimeout(() => { ok.style.display = 'none'; }, 3000);
+  });
 }
 
 function openBizOffice() {
-  localStorage.setItem('bs_bookmarklet_installed', '1');
-  q('#bookmarklet-guide').style.display = 'none';
   window.open(BIZ_URL, '_blank');
 }
 

@@ -666,37 +666,32 @@ function buildBookmarklet() {
       if(eds.length<5)return;
       filled=true;
       clearInterval(t);
-      // 4. script 주입 방식으로 popup 컨텍스트에서 실행 (execCommand 정상 동작)
+      // 4. 직접 DOM 조작 (script injection 없이 → CSP 우회)
       var rows=d['내역']||[];
       var today=new Date();
-      var ds=today.getFullYear()+'년 '+String(today.getMonth()+1).padStart(2,'0')+'월 '+String(today.getDate()).padStart(2,'0')+'일';
-      var payload={ds:ds,현장명:d['현장명']||'',rows:rows};
-      var sc=pd.createElement('script');
-      sc.textContent='(function(p){'
-        +'var f=document.getElementById("message");'
-        +'var fdoc=f.contentDocument;'
-        +'var eds=fdoc.querySelectorAll("[contenteditable=\\"true\\"]");'
-        +'function set(el,val){'
-        +'  if(!el||val===undefined)return;'
-        +'  el.focus();'
-        +'  var sel=fdoc.getSelection?fdoc.getSelection():window.getSelection();'
-        +'  var r=fdoc.createRange();r.selectNodeContents(el);'
-        +'  sel.removeAllRanges();sel.addRange(r);'
-        +'  fdoc.execCommand("insertText",false,val);'
-        +'  el.blur();'
-        +'}'
-        +'set(eds[0],p.ds);'
-        +'if(p.현장명)set(eds[1],p.현장명);'
-        +'var ti=fdoc.getElementById("frame_doctitle");'
-        +'set(ti,(p.현장명||p.rows[0]&&p.rows[0]["거래처"]||"")+\' 지출결의\');'
-        +'p.rows.forEach(function(row,i){'
-        +'  set(eds[5+i*4],row["적요"]||"");'
-        +'  set(eds[6+i*4],row["거래처"]||"");'
-        +'  set(eds[7+i*4],(row["금액"]||0).toLocaleString());'
-        +'});'
-        +'alert("✅ 자동입력 완료!\\n내용 확인 후 [기안] 버튼을 누르세요.");'
-        +'})('+JSON.stringify(payload)+');';
-      pd.head.appendChild(sc);
+      var ds=today.getFullYear()+'년 '+('0'+(today.getMonth()+1)).slice(-2)+'월 '+('0'+today.getDate()).slice(-2)+'일';
+      function ins(el,val){
+        if(!el||val==null)return;
+        var s=String(val);
+        try{
+          el.focus();
+          var w=el.ownerDocument.defaultView;
+          var sel=w&&w.getSelection?w.getSelection():null;
+          if(sel){var r=el.ownerDocument.createRange();r.selectNodeContents(el);sel.removeAllRanges();sel.addRange(r);el.ownerDocument.execCommand('insertText',false,s);}
+          else{el.textContent=s;try{el.dispatchEvent(new InputEvent('input',{bubbles:true}));}catch(e){}}
+          el.blur();
+        }catch(ex){try{el.textContent=s;el.dispatchEvent(new InputEvent('input',{bubbles:true}));}catch(e2){}}
+      }
+      ins(eds[0],ds);
+      if(d['현장명'])ins(eds[1],d['현장명']);
+      var ti=fdoc.getElementById('frame_doctitle');
+      ins(ti,(d['현장명']||(rows[0]&&rows[0]['거래처'])||'')+' 지출결의');
+      rows.forEach(function(row,i){
+        ins(eds[5+i*4],row['적요']||'');
+        ins(eds[6+i*4],row['거래처']||'');
+        ins(eds[7+i*4],(row['금액']||0).toLocaleString());
+      });
+      alert('✅ 자동입력 완료!\n내용 확인 후 [기안] 버튼을 누르세요.');
     }catch(e){
       if(tries>55){clearInterval(t);alert('오류: '+e.message);}
     }

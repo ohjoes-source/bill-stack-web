@@ -689,9 +689,10 @@ function buildBookmarklet() {
         var fdoc=mf.contentDocument;
         if(!fdoc||!fdoc.body)return;
         var rows=d['내역']||[];
-        var siteEl=fdoc.querySelector('tr:nth-child(2) > td:nth-child(2) > div');
+        var eds=fdoc.querySelectorAll('[contenteditable="true"]');
+        var siteEl=fdoc.querySelector('tr:nth-child(2) > td:nth-child(2) > div')||eds[1];
         var titleEl=fdoc.getElementById('frame_doctitle');
-        var firstRowEl=rows.length ? fdoc.querySelector('td > div > table > tbody > tr:nth-child(3) > td > div') : true;
+        var firstRowEl=rows.length ? (fdoc.querySelector('td > div > table > tbody > tr:nth-child(3) > td > div')||eds[5]) : true;
         if(!siteEl||!titleEl||!firstRowEl)return;
         filled=true;clearInterval(t);
         popup.focus();
@@ -710,12 +711,9 @@ function buildBookmarklet() {
               try{el.dispatchEvent(new mf.contentWindow.InputEvent('beforeinput',{bubbles:true,inputType:'insertText',data:s}));}catch(e){}
               fdoc.execCommand('insertText',false,s);
             }
-            if(el.textContent.trim()!==s.trim()){
-              el.innerHTML='';
-              el.appendChild(fdoc.createTextNode(s));
-              try{el.dispatchEvent(new mf.contentWindow.InputEvent('input',{bubbles:true,data:s}));}catch(e){}
-              try{el.dispatchEvent(new mf.contentWindow.Event('change',{bubbles:true}));}catch(e){}
-            }
+            el.innerText=s;
+            try{el.dispatchEvent(new mf.contentWindow.InputEvent('input',{bubbles:true,data:s}));}catch(e){}
+            try{el.dispatchEvent(new mf.contentWindow.Event('change',{bubbles:true}));}catch(e){}
           }catch(ex){
             try{
               el.textContent=s;
@@ -730,9 +728,9 @@ function buildBookmarklet() {
         ins(titleEl,(d['현장명']||'')+' 지출결의');
         rows.forEach(function(row,i){
           var tr=i+3;
-          ins(fdoc.querySelector('td > div > table > tbody > tr:nth-child('+tr+') > td > div'),row['적요']||'');
-          ins(fdoc.querySelector('tr:nth-child('+tr+') > td:nth-child(2) > div'),row['거래처']||'');
-          ins(fdoc.querySelector('tr:nth-child('+tr+') > td:nth-child(3) > div'),(row['금액']||0).toLocaleString());
+          ins(fdoc.querySelector('td > div > table > tbody > tr:nth-child('+tr+') > td > div')||eds[5+i*4],row['적요']||'');
+          ins(fdoc.querySelector('tr:nth-child('+tr+') > td:nth-child(2) > div')||eds[6+i*4],row['거래처']||'');
+          ins(fdoc.querySelector('tr:nth-child('+tr+') > td:nth-child(3) > div')||eds[7+i*4],(row['금액']||0).toLocaleString());
         });
       }catch(e){if(tries>2){clearInterval(t);showErr('접근 오류: '+e.message);}}
     },500);

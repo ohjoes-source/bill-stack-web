@@ -619,139 +619,113 @@ let currentPin = null;
 function buildBookmarklet() {
   const apiBase = API_BASE;
   const FORM_URL = 'https://gwp.ktbizoffice.com/ezApproval/DraftUI/DraftUI?formID=2020004933&formURL=2020004933.mht&DraftFlag=DRAFT&formDocType=A01003&susinSN=0&DocState=&ListType=1&AprState=&isTmpDoc=&PAGETYPE=POPUP';
-  const code = `(async function(){
-  // PIN 입력 오버레이 (prompt 대신 — 기업 브라우저 정책 우회)
-  var pin=await new Promise(function(resolve){
+  const code = `(function(){
+  // async/await 미사용 — await 후 user gesture 소멸로 popup 차단되는 문제 방지
+  var FORM_URL='${FORM_URL}';
+  var API_BASE='${apiBase}';
+  function showOv(onConfirm){
     var ov=document.createElement('div');
     ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:2147483647;display:flex;align-items:center;justify-content:center;font-family:sans-serif';
     ov.innerHTML='<div style="background:#fff;border-radius:14px;padding:32px 36px;min-width:280px;box-shadow:0 8px 40px rgba(0,0,0,.25);text-align:center">'
       +'<div style="font-size:15px;font-weight:700;margin-bottom:6px;color:#1B4FD8">📋 Bill-Stack</div>'
       +'<div style="font-size:13px;color:#555;margin-bottom:16px">앱에 표시된 4자리 PIN 입력</div>'
-      +'<input id="bs-pin-input" type="text" inputmode="numeric" maxlength="4" placeholder="0000"'
-      +' style="width:100%;padding:12px;font-size:28px;font-weight:800;text-align:center;letter-spacing:10px;border:2px solid #BFDBFE;border-radius:8px;outline:none;color:#1B4FD8;box-sizing:border-box">'
+      +'<input id="bs-pin" type="text" inputmode="numeric" maxlength="4" placeholder="0000"'
+      +' style="width:100%;padding:12px;font-size:32px;font-weight:800;text-align:center;letter-spacing:12px;border:2px solid #BFDBFE;border-radius:8px;outline:none;color:#1B4FD8;box-sizing:border-box">'
       +'<div style="display:flex;gap:10px;margin-top:16px">'
       +'<button id="bs-cancel" style="flex:1;padding:10px;border:1px solid #ddd;border-radius:8px;background:#f5f5f5;cursor:pointer;font-size:13px">취소</button>'
-      +'<button id="bs-ok" style="flex:2;padding:10px;border:none;border-radius:8px;background:#1B4FD8;color:#fff;cursor:pointer;font-size:13px;font-weight:700">확인</button>'
+      +'<button id="bs-ok" style="flex:2;padding:10px;border:none;border-radius:8px;background:#1B4FD8;color:#fff;cursor:pointer;font-size:14px;font-weight:700">확인 →</button>'
       +'</div></div>';
     document.body.appendChild(ov);
-    var inp=ov.querySelector('#bs-pin-input');
+    var inp=ov.querySelector('#bs-pin');
     inp.focus();
-    function done(){var v=inp.value.trim();document.body.removeChild(ov);resolve(v||null);}
-    ov.querySelector('#bs-ok').onclick=done;
-    ov.querySelector('#bs-cancel').onclick=function(){document.body.removeChild(ov);resolve(null);};
-    inp.onkeydown=function(e){if(e.key==='Enter')done();if(e.key==='Escape'){document.body.removeChild(ov);resolve(null);}};
-  });
-  if(!pin)return;
-  // 1. 팝업 먼저 열기 (오버레이 확인 직후 = 유저 제스처 유효 시점)
-  var popup=window.open('${FORM_URL}','billstack_form','width=1300,height=900,left=60,top=40');
-  if(!popup){
-    var msg2=document.createElement('div');
-    msg2.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:2147483647;display:flex;align-items:center;justify-content:center;font-family:sans-serif';
-    msg2.innerHTML='<div style="background:#fff;border-radius:12px;padding:28px 32px;max-width:320px;text-align:center">'
-      +'<div style="font-size:18px;margin-bottom:10px">🚫</div>'
-      +'<div style="font-size:14px;font-weight:700;margin-bottom:8px">팝업이 차단됩니다</div>'
-      +'<div style="font-size:12px;color:#666;margin-bottom:16px">주소창 오른쪽 팝업 허용 아이콘을 클릭하여 허용 후 다시 시도하세요</div>'
-      +'<button style="padding:9px 24px;background:#1B4FD8;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700">확인</button></div>';
-    document.body.appendChild(msg2);
-    msg2.querySelector('button').onclick=function(){document.body.removeChild(msg2);};
-    return;
+    function confirm(){
+      var v=inp.value.trim();
+      if(!v){inp.style.borderColor='#ef4444';return;}
+      document.body.removeChild(ov);
+      onConfirm(v); // ← 클릭 핸들러 안에서 바로 호출 (user gesture 유효)
+    }
+    ov.querySelector('#bs-ok').onclick=confirm;
+    ov.querySelector('#bs-cancel').onclick=function(){document.body.removeChild(ov);};
+    inp.onkeydown=function(e){if(e.key==='Enter')confirm();if(e.key==='Escape')document.body.removeChild(ov);};
   }
-  // 2. bill-stack에서 데이터 가져오기 (팝업 로딩과 병렬)
-  var d=await new Promise(function(resolve,reject){
+  function showErr(msg){
+    var el=document.createElement('div');
+    el.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#1e293b;color:#fff;padding:12px 20px;border-radius:8px;font-size:13px;z-index:2147483647;font-family:sans-serif;max-width:360px;text-align:center';
+    el.textContent='❌ '+msg;
+    document.body.appendChild(el);
+    setTimeout(function(){if(el.parentNode)el.parentNode.removeChild(el);},5000);
+  }
+  function fetchData(pin,popup,callback){
     var iframe=document.createElement('iframe');
-    iframe.src='${apiBase}/fill?pin='+pin.trim();
+    iframe.src=API_BASE+'/fill?pin='+pin;
     iframe.style.cssText='position:fixed;width:0;height:0;border:0;opacity:0;pointer-events:none';
     document.body.appendChild(iframe);
     var timer=setTimeout(function(){
-      document.body.removeChild(iframe);
-      reject(new Error('시간 초과 (20초): 서버 응답 없음. PIN 확인하세요.'));
+      if(iframe.parentNode)iframe.parentNode.removeChild(iframe);
+      popup.close();
+      showErr('서버 응답 없음 (20초 초과). PIN을 확인하세요.');
     },20000);
     function onMsg(e){
-      if(e.data&&e.data.type==='billStackData'){
-        clearTimeout(timer);window.removeEventListener('message',onMsg);
-        document.body.removeChild(iframe);resolve(e.data.data);
-      }else if(e.data&&e.data.type==='billStackError'){
-        clearTimeout(timer);window.removeEventListener('message',onMsg);
-        document.body.removeChild(iframe);reject(new Error(e.data.error||'오류'));
-      }
+      if(!e.data||e.data.type!=='billStackData'&&e.data.type!=='billStackError')return;
+      clearTimeout(timer);
+      window.removeEventListener('message',onMsg);
+      if(iframe.parentNode)iframe.parentNode.removeChild(iframe);
+      if(e.data.type==='billStackError'){popup.close();showErr(e.data.error||'데이터 오류');return;}
+      callback(e.data.data);
     }
     window.addEventListener('message',onMsg);
-  }).catch(function(e){popup.close();alert('오류: '+e.message);return null;});
-  if(!d)return;
-  if(d.error){popup.close();return alert('오류: '+d.error);}
-  // 3. 폼 + message iframe 로딩 대기
-  var tries=0;
-  var filled=false;
-  var t=setInterval(function(){
-    tries++;
-    if(filled)return;
-    if(tries>60){clearInterval(t);alert('폼 로딩 시간 초과 (30초)\\n수동으로 입력해주세요.');return;}
-    try{
-      if(popup.closed){clearInterval(t);return;}
-      var pd=popup.document;
-      var mf=pd.getElementById('message');
-      if(!mf)return;
-      var fdoc=mf.contentDocument;
-      if(!fdoc||fdoc.readyState!=='complete')return;
-      var eds=fdoc.querySelectorAll('[contenteditable="true"]');
-      if(eds.length<5)return;
-      filled=true;
-      clearInterval(t);
-      // 4. 포커스 체인으로 popup 컨텍스트 활성화 → execCommand 정상 동작
-      // (script injection 불필요 — CSP 우회)
-      popup.focus();
-      mf.contentWindow.focus();
-      var rows=d['내역']||[];
-      var today=new Date();
-      var ds=today.getFullYear()+'년 '+String(today.getMonth()+1).padStart(2,'0')+'월 '+String(today.getDate()).padStart(2,'0')+'일';
-      function ins(el,val){
-        if(!el||val==null)return;
-        var s=String(val);
-        try{
-          el.focus();
-          var sel=mf.contentWindow.getSelection();
-          if(sel){
-            var r=fdoc.createRange();
-            r.selectNodeContents(el);
-            sel.removeAllRanges();
-            sel.addRange(r);
-            fdoc.execCommand('insertText',false,s);
-          }
-          // 입력값 반영 확인 후 fallback
-          if(el.textContent.trim()!==s.trim()){
-            el.innerHTML='';
-            el.appendChild(fdoc.createTextNode(s));
-            try{el.dispatchEvent(new mf.contentWindow.InputEvent('input',{bubbles:true,data:s}));}catch(e){}
-            try{el.dispatchEvent(new mf.contentWindow.Event('change',{bubbles:true}));}catch(e){}
-          }
-        }catch(ex){
+  }
+  function waitAndFill(popup,d){
+    var tries=0,filled=false;
+    var t=setInterval(function(){
+      tries++;
+      if(filled)return;
+      if(tries>60){clearInterval(t);showErr('폼 로딩 시간 초과. 수동으로 입력해주세요.');return;}
+      try{
+        if(popup.closed){clearInterval(t);return;}
+        var pd=popup.document;
+        var mf=pd.getElementById('message');
+        if(!mf)return;
+        var fdoc=mf.contentDocument;
+        if(!fdoc||fdoc.readyState!=='complete')return;
+        var eds=fdoc.querySelectorAll('[contenteditable="true"]');
+        if(eds.length<5)return;
+        filled=true;clearInterval(t);
+        popup.focus();mf.contentWindow.focus();
+        var rows=d['내역']||[];
+        var today=new Date();
+        var ds=today.getFullYear()+'년 '+String(today.getMonth()+1).padStart(2,'0')+'월 '+String(today.getDate()).padStart(2,'0')+'일';
+        function ins(el,val){
+          if(!el||val==null)return;var s=String(val);
           try{
-            el.textContent=s;
-            el.dispatchEvent(new mf.contentWindow.InputEvent('input',{bubbles:true}));
-          }catch(e2){}
+            el.focus();
+            var sel=mf.contentWindow.getSelection();
+            if(sel){var r=fdoc.createRange();r.selectNodeContents(el);sel.removeAllRanges();sel.addRange(r);fdoc.execCommand('insertText',false,s);}
+            if(el.textContent.trim()!==s.trim()){el.innerHTML='';el.appendChild(fdoc.createTextNode(s));try{el.dispatchEvent(new mf.contentWindow.InputEvent('input',{bubbles:true,data:s}));}catch(e){}}
+          }catch(ex){try{el.textContent=s;el.dispatchEvent(new mf.contentWindow.InputEvent('input',{bubbles:true}));}catch(e2){}}
+          el.blur();
         }
-        el.blur();
-      }
-      ins(eds[0],ds);
-      if(d['현장명'])ins(eds[1],d['현장명']);
-      var ti=fdoc.getElementById('frame_doctitle');
-      ins(ti,(d['현장명']||rows[0]&&rows[0]['거래처']||'')+' 지출결의');
-      rows.forEach(function(row,i){
-        ins(eds[5+i*4],row['적요']||'');
-        ins(eds[6+i*4],row['거래처']||'');
-        ins(eds[7+i*4],(row['금액']||0).toLocaleString());
-      });
-      // 결과 요약
-      var msg='✅ 자동입력 완료!\n';
-      msg+='날짜: '+ds+'\n';
-      if(d['현장명'])msg+='현장명: '+d['현장명']+'\n';
-      msg+=rows.length+'건 입력\n내용 확인 후 [기안] 버튼을 누르세요.';
-      alert(msg);
-    }catch(e){
-      if(tries>55){clearInterval(t);alert('오류: '+e.message+'\n\neds 개수: '+(typeof eds!=='undefined'?eds.length:'미확인'));}
-    }
-  },500);
-})();`;
+        ins(eds[0],ds);
+        if(d['현장명'])ins(eds[1],d['현장명']);
+        var ti=fdoc.getElementById('frame_doctitle');
+        ins(ti,(d['현장명']||rows[0]&&rows[0]['거래처']||'')+' 지출결의');
+        rows.forEach(function(row,i){ins(eds[5+i*4],row['적요']||'');ins(eds[6+i*4],row['거래처']||'');ins(eds[7+i*4],(row['금액']||0).toLocaleString());});
+        var ok=document.createElement('div');
+        ok.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#065f46;color:#fff;padding:14px 24px;border-radius:10px;font-size:13px;z-index:2147483647;font-family:sans-serif;text-align:center';
+        ok.innerHTML='✅ 자동입력 완료!<br><span style="opacity:.8;font-size:12px">내용 확인 후 [기안] 버튼을 누르세요</span>';
+        document.body.appendChild(ok);
+        setTimeout(function(){if(ok.parentNode)ok.parentNode.removeChild(ok);},4000);
+      }catch(e){if(tries>55){clearInterval(t);showErr('오류: '+e.message);}}
+    },500);
+  }
+  // 실행 시작: 오버레이 → 클릭 핸들러 안에서 popup.open + fetchData
+  showOv(function(pin){
+    var popup=window.open(FORM_URL,'billstack_form','width=1300,height=900,left=60,top=40');
+    if(!popup){showErr('팝업이 차단됩니다. 주소창 우측 팝업 허용 후 다시 시도하세요.');return;}
+    fetchData(pin,popup,function(d){waitAndFill(popup,d);});
+  });
+})()`;
+
   return 'javascript:' + encodeURIComponent(code);
 }
 

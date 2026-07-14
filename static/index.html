@@ -680,42 +680,43 @@ function buildBookmarklet() {
     var t=setInterval(function(){
       tries++;
       if(filled)return;
-      if(tries>60){clearInterval(t);showErr('폼 로딩 시간 초과. 수동으로 입력해주세요.');return;}
+      if(tries>60){clearInterval(t);showErr('폼 로딩 시간 초과 (30초). 수동 입력하세요.');return;}
       try{
         if(popup.closed){clearInterval(t);return;}
         var pd=popup.document;
+        // ── 진단: 폼 구조 파악 ──
+        // id="message" iframe 탐색
         var mf=pd.getElementById('message');
-        if(!mf)return;
+        if(!mf){
+          // 30초 경과시 iframe 목록 보여주기
+          if(tries===58){
+            var iframes=pd.querySelectorAll('iframe');
+            var ids=Array.prototype.map.call(iframes,function(f){return f.id||'(no-id)';}).join(', ');
+            showErr('iframe#message 없음. 발견된 iframe: '+ids+'  (스크린샷 찍어서 알려주세요)');
+          }
+          return;
+        }
         var fdoc=mf.contentDocument;
         if(!fdoc||fdoc.readyState!=='complete')return;
         var eds=fdoc.querySelectorAll('[contenteditable="true"]');
-        if(eds.length<5)return;
+        // contenteditable 5개 미만이면 아직 로딩 중
+        if(eds.length<1)return;
         filled=true;clearInterval(t);
-        popup.focus();mf.contentWindow.focus();
-        var rows=d['내역']||[];
-        var today=new Date();
-        var ds=today.getFullYear()+'년 '+String(today.getMonth()+1).padStart(2,'0')+'월 '+String(today.getDate()).padStart(2,'0')+'일';
-        function ins(el,val){
-          if(!el||val==null)return;var s=String(val);
-          try{
-            el.focus();
-            var sel=mf.contentWindow.getSelection();
-            if(sel){var r=fdoc.createRange();r.selectNodeContents(el);sel.removeAllRanges();sel.addRange(r);fdoc.execCommand('insertText',false,s);}
-            if(el.textContent.trim()!==s.trim()){el.innerHTML='';el.appendChild(fdoc.createTextNode(s));try{el.dispatchEvent(new mf.contentWindow.InputEvent('input',{bubbles:true,data:s}));}catch(e){}}
-          }catch(ex){try{el.textContent=s;el.dispatchEvent(new mf.contentWindow.InputEvent('input',{bubbles:true}));}catch(e2){}}
-          el.blur();
-        }
-        ins(eds[0],ds);
-        if(d['현장명'])ins(eds[1],d['현장명']);
-        var ti=fdoc.getElementById('frame_doctitle');
-        ins(ti,(d['현장명']||rows[0]&&rows[0]['거래처']||'')+' 지출결의');
-        rows.forEach(function(row,i){ins(eds[5+i*4],row['적요']||'');ins(eds[6+i*4],row['거래처']||'');ins(eds[7+i*4],(row['금액']||0).toLocaleString());});
-        var ok=document.createElement('div');
-        ok.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#065f46;color:#fff;padding:14px 24px;border-radius:10px;font-size:13px;z-index:2147483647;font-family:sans-serif;text-align:center';
-        ok.innerHTML='✅ 자동입력 완료!<br><span style="opacity:.8;font-size:12px">내용 확인 후 [기안] 버튼을 누르세요</span>';
-        document.body.appendChild(ok);
-        setTimeout(function(){if(ok.parentNode)ok.parentNode.removeChild(ok);},4000);
-      }catch(e){if(tries>55){clearInterval(t);showErr('오류: '+e.message);}}
+        // ── 진단 오버레이: 실제 DOM 구조 표시 ──
+        var info='contenteditable 개수: '+eds.length+'\\n\\n';
+        Array.prototype.forEach.call(eds,function(el,i){
+          info+='['+i+'] id='+( el.id||'-')+' class='+(el.className||'-')+' text="'+(el.textContent||'').slice(0,20)+'"\\n';
+        });
+        var titleEl=fdoc.getElementById('frame_doctitle');
+        info+='\\nframe_doctitle: '+(titleEl?'있음':'없음');
+        // BizOffice 팝업 안에 진단 오버레이 표시
+        var dbg=pd.createElement('div');
+        dbg.style.cssText='position:fixed;top:10px;right:10px;background:#1e293b;color:#e2e8f0;padding:14px 16px;border-radius:10px;font-size:11px;font-family:monospace;z-index:99999;max-width:420px;white-space:pre;line-height:1.6;max-height:80vh;overflow-y:auto;box-shadow:0 4px 24px rgba(0,0,0,.4)';
+        dbg.textContent='📋 Bill-Stack DOM 진단\\n'+'─'.repeat(30)+'\\n'+info;
+        pd.body.appendChild(dbg);
+        setTimeout(function(){if(dbg.parentNode)dbg.parentNode.removeChild(dbg);},30000);
+        showErr('진단 완료! BizOffice 팝업 오른쪽 상단에 DOM 정보가 표시됩니다. 스크린샷 찍어서 알려주세요.');
+      }catch(e){if(tries>2){clearInterval(t);showErr('접근 오류: '+e.message);}}
     },500);
   }
   // 실행 시작: 오버레이 → 클릭 핸들러 안에서 popup.open + fetchData

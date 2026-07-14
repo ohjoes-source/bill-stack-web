@@ -656,24 +656,22 @@ function buildBookmarklet() {
     setTimeout(function(){if(el.parentNode)el.parentNode.removeChild(el);},5000);
   }
   function fetchData(pin,popup,callback){
-    var iframe=document.createElement('iframe');
-    iframe.src=API_BASE+'/fill?pin='+pin;
-    iframe.style.cssText='position:fixed;width:0;height:0;border:0;opacity:0;pointer-events:none';
-    document.body.appendChild(iframe);
     var timer=setTimeout(function(){
-      if(iframe.parentNode)iframe.parentNode.removeChild(iframe);
       popup.close();
-      showErr('서버 응답 없음 (20초 초과). PIN을 확인하세요.');
-    },20000);
-    function onMsg(e){
-      if(!e.data||e.data.type!=='billStackData'&&e.data.type!=='billStackError')return;
-      clearTimeout(timer);
-      window.removeEventListener('message',onMsg);
-      if(iframe.parentNode)iframe.parentNode.removeChild(iframe);
-      if(e.data.type==='billStackError'){popup.close();showErr(e.data.error||'데이터 오류');return;}
-      callback(e.data.data);
-    }
-    window.addEventListener('message',onMsg);
+      showErr('서버 응답 없음 (30초 초과). PIN을 확인하세요.');
+    },30000);
+    fetch(API_BASE+'/api/draft/'+pin)
+      .then(function(r){return r.json();})
+      .then(function(data){
+        clearTimeout(timer);
+        if(data.error){popup.close();showErr(data.error);return;}
+        callback(data);
+      })
+      .catch(function(e){
+        clearTimeout(timer);
+        popup.close();
+        showErr('서버 오류: '+e.message);
+      });
   }
   function waitAndFill(popup,d){
     var tries=0,filled=false;
@@ -703,23 +701,14 @@ function buildBookmarklet() {
           try{
             el.focus();
             var sel=mf.contentWindow.getSelection();
-            if(sel){
-              var r=fdoc.createRange();
-              r.selectNodeContents(el);
-              sel.removeAllRanges();
-              sel.addRange(r);
-              try{el.dispatchEvent(new mf.contentWindow.InputEvent('beforeinput',{bubbles:true,inputType:'insertText',data:s}));}catch(e){}
-              fdoc.execCommand('insertText',false,s);
-            }
-            el.innerText=s;
+            var r=fdoc.createRange();
+            r.selectNodeContents(el);
+            sel.removeAllRanges();
+            sel.addRange(r);
+            fdoc.execCommand('insertText',false,s);
             try{el.dispatchEvent(new mf.contentWindow.InputEvent('input',{bubbles:true,data:s}));}catch(e){}
             try{el.dispatchEvent(new mf.contentWindow.Event('change',{bubbles:true}));}catch(e){}
-          }catch(ex){
-            try{
-              el.textContent=s;
-              el.dispatchEvent(new mf.contentWindow.InputEvent('input',{bubbles:true,data:s}));
-            }catch(e2){}
-          }
+          }catch(ex){}
           el.blur();
         }
         var now=new Date();

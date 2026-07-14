@@ -283,27 +283,38 @@ body { font-family:'Apple SD Gothic Neo','맑은 고딕',sans-serif;
     <div id="pane-replay" class="card" style="display:none">
       <div class="card-title">기안하기</div>
 
-      <!-- 코드 복사 박스 -->
-      <div style="background:#EFF4FF;border:1.5px solid #BFDBFE;border-radius:12px;padding:16px 18px;margin-bottom:14px;text-align:center">
-        <div style="font-weight:700;color:#1B4FD8;font-size:13px;margin-bottom:12px">① 아래 버튼으로 코드를 복사하세요</div>
-        <button id="copy-code-btn" onclick="copyFillCode()"
-          style="padding:12px 28px;background:#1B4FD8;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;width:100%;max-width:280px">
-          📋 자동입력 코드 복사
-        </button>
-        <div id="copy-ok" style="display:none;margin-top:8px;font-size:13px;color:#16A34A;font-weight:700">✅ 복사됨!</div>
+      <!-- 북마클릿 미설치 안내 (최초 1회) -->
+      <div id="bookmarklet-guide" style="display:none;background:#F0F4FF;border:1px solid #C7D7F5;border-radius:10px;padding:16px 18px;margin-bottom:18px">
+        <div style="font-weight:700;color:#1B4FD8;margin-bottom:8px">📌 북마클릿 1회 설치 필요</div>
+        <div style="font-size:13px;color:#3A4A6B;line-height:1.7;margin-bottom:12px">
+          아래 버튼을 <b>브라우저 북마크 바로 드래그</b>하세요.<br>
+          한 번만 하면 이후엔 필요 없습니다.
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <a id="bookmarklet-link" href="" style="display:inline-block;padding:8px 18px;background:#1B4FD8;color:#fff;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;cursor:grab">
+            📋 BizOffice 자동입력
+          </a>
+          <span style="font-size:12px;color:#5A6A85">← 이걸 북마크 바로 드래그</span>
+        </div>
+        <div style="margin-top:10px;font-size:12px;color:#5A6A85">
+          북마크 바가 안 보이면: Ctrl+Shift+B (Windows) / Cmd+Shift+B (Mac)
+        </div>
       </div>
 
-      <!-- 실행 안내 -->
-      <div style="background:#F0FDF4;border:1.5px solid #86EFAC;border-radius:12px;padding:16px 18px;margin-bottom:16px">
-        <div style="font-weight:700;color:#16A34A;font-size:13px;margin-bottom:10px">② BizOffice에서 실행</div>
-        <ol id="replay-steps" style="font-size:13px;color:#3A4A6B;line-height:2.2;padding-left:18px;margin:0">
-          <li>아래 <b>[BizOffice 열기]</b> 클릭 → BizOffice 탭으로 이동</li>
-          <li>키보드 <b>F12</b> 눌러서 개발자 도구 열기</li>
-          <li>상단 탭에서 <b>Console</b> 클릭</li>
-          <li><b>Ctrl+V</b> 붙여넣기 → <b>Enter</b></li>
-          <li>지출결의서 팝업이 열리며 <b>자동 입력됩니다</b></li>
-        </ol>
+      <!-- PIN 안내 -->
+      <div id="draft-pin-box" style="display:none;text-align:center;padding:12px 0 18px">
+        <div style="font-size:13px;color:#5A6A85;margin-bottom:6px">BizOffice에서 북마클릿 클릭 후 입력할 코드</div>
+        <div id="draft-pin" style="font-size:48px;font-weight:900;letter-spacing:12px;color:#1B4FD8;font-variant-numeric:tabular-nums"></div>
+        <div style="font-size:12px;color:#A0AABF;margin-top:4px">30분 유효</div>
       </div>
+
+      <!-- 순서 안내 -->
+      <ol id="replay-steps" style="display:none;font-size:13px;color:#3A4A6B;line-height:2;padding-left:20px;margin-bottom:18px">
+        <li>BizOffice <b>메인 페이지</b>에서 북마클릿 클릭 → 코드 입력</li>
+        <li>"준비됐습니다" 확인 후 <b>결재 → 기안하기 → 수입지출결의서 → 확인</b></li>
+        <li>팝업이 열리면 <b>자동으로 폼 입력됨</b></li>
+        <li>내용 확인 후 BizOffice에서 직접 <b>기안</b></li>
+      </ol>
 
       <div class="btn-row">
         <button class="btn-secondary" onclick="goStep(3)">← 뒤로</button>
@@ -312,10 +323,6 @@ body { font-family:'Apple SD Gothic Neo','맑은 고딕',sans-serif;
       <div id="replay-done-row" style="display:none;text-align:center;margin-top:12px">
         <button class="btn-primary" style="max-width:220px;margin:0 auto" onclick="showDone()">기안 완료 확인 →</button>
       </div>
-      <!-- 숨김: JS에서 참조하는 요소 유지 -->
-      <div id="draft-pin-box" style="display:none"><div id="draft-pin"></div></div>
-      <div id="bookmarklet-guide" style="display:none"></div>
-      <a id="bookmarklet-link" href="" style="display:none"></a>
     </div>
 
     <!-- 완료 -->
@@ -607,74 +614,94 @@ const BIZ_URL = 'https://gwp.ktbizoffice.com/ezPortal/Main/IndexPortal';
 const API_BASE = location.origin;
 let currentPin = null;
 
-// 북마클릿 코드 — 데이터 내장 방식 (script injection 없이 직접 DOM 조작)
-function buildBookmarklet(embeddedData) {
+// 북마클릿 코드
+// BizOffice 어디서든 실행 → PIN 입력 → 기안 폼 자동 오픈 → 자동 입력
+function buildBookmarklet() {
+  const apiBase = API_BASE;
   const FORM_URL = 'https://gwp.ktbizoffice.com/ezApproval/DraftUI/DraftUI?formID=2020004933&formURL=2020004933.mht&DraftFlag=DRAFT&formDocType=A01003&susinSN=0&DocState=&ListType=1&AprState=&isTmpDoc=&PAGETYPE=POPUP';
-
-  if (!embeddedData) {
-    // 설치만 하고 데이터 없이 클릭했을 때
-    return 'javascript:' + encodeURIComponent('alert("앱에서 기안하기 버튼을 먼저 눌러주세요.");');
-  }
-
-  // 북마클릿 전체 코드 (script injection 없이 직접 popup DOM 조작)
-  const code = `(function(){
-var d=${JSON.stringify(embeddedData)};
-var FORM_URL='${FORM_URL}';
-var popup=window.open(FORM_URL,'bstack','width=1300,height=900,left=60,top=40');
-if(!popup){alert('팝업이 차단됩니다.\\nBizOffice에서 팝업을 허용해주세요.');return;}
-var tries=0,filled=false;
-var t=setInterval(function(){
-  tries++;
-  if(filled)return;
-  if(tries>80){clearInterval(t);alert('폼 로딩 시간 초과(40초)');return;}
-  try{
-    if(popup.closed){clearInterval(t);return;}
-    var pd=popup.document;
-    var mf=pd.getElementById('message');
-    if(!mf)return;
-    var fdoc=mf.contentDocument||mf.contentWindow.document;
-    if(!fdoc||fdoc.readyState!=='complete')return;
-    var eds=fdoc.querySelectorAll('[contenteditable="true"]');
-    if(eds.length<3)return;
-    filled=true;clearInterval(t);
-    function ins(el,val){
-      if(!el||val==null)return;
-      var s=String(val);
-      try{
-        el.focus();
-        var w=el.ownerDocument.defaultView;
-        var sel=w&&w.getSelection?w.getSelection():null;
-        if(sel){
-          var r=el.ownerDocument.createRange();
-          r.selectNodeContents(el);
-          sel.removeAllRanges();sel.addRange(r);
-          el.ownerDocument.execCommand('insertText',false,s);
-        }else{
-          el.textContent=s;
-          try{el.dispatchEvent(new InputEvent('input',{bubbles:true}));}catch(e){}
-        }
-        el.blur();
-      }catch(ex){
-        try{el.textContent=s;el.dispatchEvent(new InputEvent('input',{bubbles:true}));}catch(e2){}
+  const code = `(async function(){
+  var pin=prompt('Bill-Stack PIN 입력 (앱에서 확인):');
+  if(!pin)return;
+  // 1. 팝업 먼저 열기 (prompt 직후 = 유저 제스처 유효 시점)
+  var popup=window.open('${FORM_URL}','billstack_form','width=1300,height=900,left=60,top=40');
+  if(!popup)return alert('팝업이 차단됩니다. 이 사이트의 팝업 허용 후 다시 시도하세요.');
+  // 2. bill-stack에서 데이터 가져오기 (팝업 로딩과 병렬)
+  var d=await new Promise(function(resolve,reject){
+    var iframe=document.createElement('iframe');
+    iframe.src='${apiBase}/fill?pin='+pin.trim();
+    iframe.style.cssText='position:fixed;width:0;height:0;border:0;opacity:0;pointer-events:none';
+    document.body.appendChild(iframe);
+    var timer=setTimeout(function(){
+      document.body.removeChild(iframe);
+      reject(new Error('시간 초과 (15초): 서버 응답 없음. PIN 확인하세요.'));
+    },15000);
+    function onMsg(e){
+      if(e.data&&e.data.type==='billStackData'){
+        clearTimeout(timer);window.removeEventListener('message',onMsg);
+        document.body.removeChild(iframe);resolve(e.data.data);
+      }else if(e.data&&e.data.type==='billStackError'){
+        clearTimeout(timer);window.removeEventListener('message',onMsg);
+        document.body.removeChild(iframe);reject(new Error(e.data.error||'오류'));
       }
     }
-    var today=new Date();
-    var ds=today.getFullYear()+'년 '+('0'+(today.getMonth()+1)).slice(-2)+'월 '+('0'+today.getDate()).slice(-2)+'일';
-    var rows=d['내역']||[];
-    ins(eds[0],ds);
-    if(d['현장명'])ins(eds[1],d['현장명']);
-    var ti=fdoc.getElementById('frame_doctitle');
-    ins(ti,(d['현장명']||(rows[0]&&rows[0]['거래처'])||'')+' 지출결의');
-    rows.forEach(function(row,i){
-      ins(eds[5+i*4],row['적요']||'');
-      ins(eds[6+i*4],row['거래처']||'');
-      ins(eds[7+i*4],(row['금액']||0).toLocaleString());
-    });
-    alert('✅ 자동입력 완료!\n내용 확인 후 [기안] 버튼을 누르세요.');
-  }catch(e){if(tries>75){clearInterval(t);alert('오류: '+e.message);}}
-},500);
+    window.addEventListener('message',onMsg);
+  }).catch(function(e){popup.close();alert('오류: '+e.message);return null;});
+  if(!d)return;
+  if(d.error){popup.close();return alert('오류: '+d.error);}
+  // 3. 폼 + message iframe 로딩 대기
+  var tries=0;
+  var filled=false;
+  var t=setInterval(function(){
+    tries++;
+    if(filled)return;
+    if(tries>60){clearInterval(t);alert('폼 로딩 시간 초과 (30초)\\n수동으로 입력해주세요.');return;}
+    try{
+      if(popup.closed){clearInterval(t);return;}
+      var pd=popup.document;
+      var mf=pd.getElementById('message');
+      if(!mf)return;
+      var fdoc=mf.contentDocument;
+      if(!fdoc||fdoc.readyState!=='complete')return;
+      var eds=fdoc.querySelectorAll('[contenteditable="true"]');
+      if(eds.length<5)return;
+      filled=true;
+      clearInterval(t);
+      // 4. script 주입 방식으로 popup 컨텍스트에서 실행 (execCommand 정상 동작)
+      var rows=d['내역']||[];
+      var today=new Date();
+      var ds=today.getFullYear()+'년 '+String(today.getMonth()+1).padStart(2,'0')+'월 '+String(today.getDate()).padStart(2,'0')+'일';
+      var payload={ds:ds,현장명:d['현장명']||'',rows:rows};
+      var sc=pd.createElement('script');
+      sc.textContent='(function(p){'
+        +'var f=document.getElementById("message");'
+        +'var fdoc=f.contentDocument;'
+        +'var eds=fdoc.querySelectorAll("[contenteditable=\\"true\\"]");'
+        +'function set(el,val){'
+        +'  if(!el||val===undefined)return;'
+        +'  el.focus();'
+        +'  var sel=fdoc.getSelection?fdoc.getSelection():window.getSelection();'
+        +'  var r=fdoc.createRange();r.selectNodeContents(el);'
+        +'  sel.removeAllRanges();sel.addRange(r);'
+        +'  fdoc.execCommand("insertText",false,val);'
+        +'  el.blur();'
+        +'}'
+        +'set(eds[0],p.ds);'
+        +'if(p.현장명)set(eds[1],p.현장명);'
+        +'var ti=fdoc.getElementById("frame_doctitle");'
+        +'set(ti,(p.현장명||p.rows[0]&&p.rows[0]["거래처"]||"")+\' 지출결의\');'
+        +'p.rows.forEach(function(row,i){'
+        +'  set(eds[5+i*4],row["적요"]||"");'
+        +'  set(eds[6+i*4],row["거래처"]||"");'
+        +'  set(eds[7+i*4],(row["금액"]||0).toLocaleString());'
+        +'});'
+        +'alert("✅ 자동입력 완료!\\n내용 확인 후 [기안] 버튼을 누르세요.");'
+        +'})('+JSON.stringify(payload)+');';
+      pd.head.appendChild(sc);
+    }catch(e){
+      if(tries>55){clearInterval(t);alert('오류: '+e.message);}
+    }
+  },500);
 })();`;
-
   return 'javascript:' + encodeURIComponent(code);
 }
 
@@ -687,20 +714,23 @@ function toggleQuickstart() {
   q('#qs-toggle-btn').textContent = _qsOpen ? '접기 ▲' : '펼치기 ▼';
 }
 
-let _currentFillCode = '';
-
-function setFillCodeFromData(data) {
-  const href = buildBookmarklet(data);
-  // javascript: 접두사 제거 → 콘솔에 붙여넣기 가능한 순수 JS
-  _currentFillCode = decodeURIComponent(href.replace('javascript:', ''));
-}
-
 async function testBookmarkletOnly() {
-  const testData = { 현장명: '테스트현장', 내역: [{ 적요: '스타벅스', 거래처: '스타벅스커피코리아(주)', 금액: 6500 }] };
-  draftMeta = { site: '테스트현장', total: 6500 };
-  setFillCodeFromData(testData);
-  q('#replay-done-row').style.display = 'none';
-  goStep(4);
+  try {
+    const r = await fetch('/api/test-draft', { method: 'POST' });
+    const d = await r.json();
+    currentPin = d.pin;
+    draftMeta = { site: '테스트현장', total: d.data.금액 };
+    const bmHref = buildBookmarklet();
+    q('#bookmarklet-link').href = bmHref;
+    q('#qs-bookmarklet-link').href = bmHref;
+    const hl1 = q('#help-bookmarklet-link'); if (hl1) hl1.href = bmHref;
+    q('#draft-pin').textContent = currentPin;
+    q('#bookmarklet-guide').style.display = localStorage.getItem('bs_bookmarklet_installed') ? 'none' : '';
+    q('#draft-pin-box').style.display = '';
+    q('#replay-steps').style.display = '';
+    q('#replay-done-row').style.display = 'none';
+    goStep(4);
+  } catch(e) { alert('오류: ' + e.message); }
 }
 
 async function startReplay() {
@@ -708,36 +738,32 @@ async function startReplay() {
   if (!data.현장명) { alert('현장명을 입력해주세요'); return; }
   if (!data.내역.length) { alert('내역 항목이 없습니다'); return; }
   draftMeta = { site: data.현장명, total: data.내역.reduce((s, r) => s + r.금액, 0) };
-  setFillCodeFromData(data);
-  q('#replay-done-row').style.display = '';
-  goStep(4);
-}
 
-function copyFillCode() {
-  if (!_currentFillCode) {
-    alert('먼저 앱에서 영수증 OCR 후 기안하기를 눌러주세요.');
-    return;
-  }
-  navigator.clipboard.writeText(_currentFillCode).then(() => {
-    const ok = q('#copy-ok');
-    ok.style.display = '';
-    setTimeout(() => { ok.style.display = 'none'; }, 3000);
-  }).catch(() => {
-    // clipboard API 실패 시 textarea로 대체
-    const ta = document.createElement('textarea');
-    ta.value = _currentFillCode;
-    ta.style.cssText = 'position:fixed;opacity:0';
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand('copy');
-    document.body.removeChild(ta);
-    const ok = q('#copy-ok');
-    ok.style.display = '';
-    setTimeout(() => { ok.style.display = 'none'; }, 3000);
-  });
+  try {
+    const r = await api('/api/draft', 'POST', { result_data: data });
+    currentPin = r.pin;
+  } catch(e) { alert('오류: ' + e.message); return; }
+
+  goStep(4);
+
+  // 북마클릿 링크 세팅
+  const bmHref = buildBookmarklet();
+  q('#bookmarklet-link').href = bmHref;
+  q('#qs-bookmarklet-link').href = bmHref;
+  const hl2 = q('#help-bookmarklet-link'); if (hl2) hl2.href = bmHref;
+  q('#draft-pin').textContent = currentPin;
+
+  // 최초 방문 여부
+  const installed = localStorage.getItem('bs_bookmarklet_installed');
+  q('#bookmarklet-guide').style.display = installed ? 'none' : '';
+  q('#draft-pin-box').style.display = '';
+  q('#replay-steps').style.display = '';
+  q('#replay-done-row').style.display = '';
 }
 
 function openBizOffice() {
+  localStorage.setItem('bs_bookmarklet_installed', '1');
+  q('#bookmarklet-guide').style.display = 'none';
   window.open(BIZ_URL, '_blank');
 }
 

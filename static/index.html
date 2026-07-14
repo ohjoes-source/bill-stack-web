@@ -283,38 +283,28 @@ body { font-family:'Apple SD Gothic Neo','맑은 고딕',sans-serif;
     <div id="pane-replay" class="card" style="display:none">
       <div class="card-title">기안하기</div>
 
-      <!-- 북마클릿 미설치 안내 (최초 1회) -->
-      <div id="bookmarklet-guide" style="display:none;background:#F0F4FF;border:1px solid #C7D7F5;border-radius:10px;padding:16px 18px;margin-bottom:18px">
-        <div style="font-weight:700;color:#1B4FD8;margin-bottom:8px">📌 북마클릿 1회 설치 필요</div>
-        <div style="font-size:13px;color:#3A4A6B;line-height:1.7;margin-bottom:12px">
-          아래 버튼을 <b>브라우저 북마크 바로 드래그</b>하세요.<br>
-          한 번만 하면 이후엔 필요 없습니다.
-        </div>
-        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-          <a id="bookmarklet-link" href="" style="display:inline-block;padding:8px 18px;background:#1B4FD8;color:#fff;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;cursor:grab">
+      <!-- STEP A: 북마클릿 설치 (항상 표시) -->
+      <div style="background:#EFF4FF;border:1.5px solid #BFDBFE;border-radius:12px;padding:16px 18px;margin-bottom:14px">
+        <div style="font-weight:700;color:#1B4FD8;font-size:13px;margin-bottom:10px">① 북마클릿을 북마크 바에 드래그 (최초 1회)</div>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px">
+          <a id="bookmarklet-link" href="" style="display:inline-block;padding:9px 20px;background:#1B4FD8;color:#fff;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;cursor:grab;flex-shrink:0">
             📋 BizOffice 자동입력
           </a>
-          <span style="font-size:12px;color:#5A6A85">← 이걸 북마크 바로 드래그</span>
+          <span style="font-size:12px;color:#5A6A85;line-height:1.5">← 이 버튼을 마우스로 잡아서<br>상단 북마크 바에 놓으세요</span>
         </div>
-        <div style="margin-top:10px;font-size:12px;color:#5A6A85">
-          북마크 바가 안 보이면: Ctrl+Shift+B (Windows) / Cmd+Shift+B (Mac)
-        </div>
+        <div style="font-size:11px;color:#A0AABF">북마크 바가 안 보이면 Ctrl+Shift+B (Mac: Cmd+Shift+B)</div>
       </div>
 
-      <!-- PIN 안내 -->
-      <div id="draft-pin-box" style="display:none;text-align:center;padding:12px 0 18px">
-        <div style="font-size:13px;color:#5A6A85;margin-bottom:6px">BizOffice에서 북마클릿 클릭 후 입력할 코드</div>
-        <div id="draft-pin" style="font-size:48px;font-weight:900;letter-spacing:12px;color:#1B4FD8;font-variant-numeric:tabular-nums"></div>
-        <div style="font-size:12px;color:#A0AABF;margin-top:4px">30분 유효</div>
+      <!-- STEP B: BizOffice 실행 -->
+      <div style="background:#F0FDF4;border:1.5px solid #86EFAC;border-radius:12px;padding:16px 18px;margin-bottom:16px">
+        <div style="font-weight:700;color:#16A34A;font-size:13px;margin-bottom:10px">② BizOffice에서 북마클릿 클릭</div>
+        <ol id="replay-steps" style="font-size:13px;color:#3A4A6B;line-height:2.1;padding-left:18px;margin:0">
+          <li>아래 <b>[BizOffice 열기]</b> 버튼으로 BizOffice 이동</li>
+          <li>북마크 바에서 <b>📋 BizOffice 자동입력</b> 클릭</li>
+          <li>지출결의서 팝업이 열리며 <b>자동 입력됩니다</b></li>
+          <li>내용 확인 후 BizOffice에서 직접 <b>기안</b></li>
+        </ol>
       </div>
-
-      <!-- 순서 안내 -->
-      <ol id="replay-steps" style="display:none;font-size:13px;color:#3A4A6B;line-height:2;padding-left:20px;margin-bottom:18px">
-        <li>BizOffice <b>메인 페이지</b>에서 북마클릿 클릭 → 코드 입력</li>
-        <li>"준비됐습니다" 확인 후 <b>결재 → 기안하기 → 수입지출결의서 → 확인</b></li>
-        <li>팝업이 열리면 <b>자동으로 폼 입력됨</b></li>
-        <li>내용 확인 후 BizOffice에서 직접 <b>기안</b></li>
-      </ol>
 
       <div class="btn-row">
         <button class="btn-secondary" onclick="goStep(3)">← 뒤로</button>
@@ -323,6 +313,9 @@ body { font-family:'Apple SD Gothic Neo','맑은 고딕',sans-serif;
       <div id="replay-done-row" style="display:none;text-align:center;margin-top:12px">
         <button class="btn-primary" style="max-width:220px;margin:0 auto" onclick="showDone()">기안 완료 확인 →</button>
       </div>
+      <!-- 숨김: JS에서 참조하는 요소 유지 -->
+      <div id="draft-pin-box" style="display:none"><div id="draft-pin"></div></div>
+      <div id="bookmarklet-guide" style="display:none"></div>
     </div>
 
     <!-- 완료 -->

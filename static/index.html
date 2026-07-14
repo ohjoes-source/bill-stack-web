@@ -684,38 +684,37 @@ function buildBookmarklet() {
       try{
         if(popup.closed){clearInterval(t);return;}
         var pd=popup.document;
-        // ── 진단: 폼 구조 파악 ──
-        // id="message" iframe 탐색
         var mf=pd.getElementById('message');
-        if(!mf){
-          // 30초 경과시 iframe 목록 보여주기
-          if(tries===58){
-            var iframes=pd.querySelectorAll('iframe');
-            var ids=Array.prototype.map.call(iframes,function(f){return f.id||'(no-id)';}).join(', ');
-            showErr('iframe#message 없음. 발견된 iframe: '+ids+'  (스크린샷 찍어서 알려주세요)');
-          }
-          return;
-        }
+        if(!mf)return;
         var fdoc=mf.contentDocument;
         if(!fdoc||fdoc.readyState!=='complete')return;
         var eds=fdoc.querySelectorAll('[contenteditable="true"]');
-        // contenteditable 5개 미만이면 아직 로딩 중
-        if(eds.length<1)return;
+        if(eds.length<5)return;
         filled=true;clearInterval(t);
-        // ── 진단 오버레이: 실제 DOM 구조 표시 ──
-        var info='contenteditable 개수: '+eds.length+'\\n\\n';
-        Array.prototype.forEach.call(eds,function(el,i){
-          info+='['+i+'] id='+( el.id||'-')+' class='+(el.className||'-')+' text="'+(el.textContent||'').slice(0,20)+'"\\n';
+        function ins(el,val){
+          if(!el||val==null)return;
+          var s=String(val);
+          el.focus();
+          var sel=mf.contentWindow.getSelection();
+          var r=fdoc.createRange();
+          r.selectNodeContents(el);
+          sel.removeAllRanges();
+          sel.addRange(r);
+          fdoc.execCommand('insertText',false,s);
+        }
+        var now=new Date();
+        var ds=now.getFullYear()+'.'+(('0'+(now.getMonth()+1)).slice(-2))+'.'+(('0'+now.getDate()).slice(-2));
+        ins(eds[0],ds);
+        if(d['현장명'])ins(eds[1],d['현장명']);
+        var ti=fdoc.getElementById('frame_doctitle');
+        if(ti&&d['제목'])ins(ti,d['제목']);
+        var rows=d['내역']||[];
+        rows.forEach(function(row,i){
+          if(5+i*4>=eds.length)return;
+          ins(eds[5+i*4],row['적요']||'');
+          ins(eds[6+i*4],row['거래처']||'');
+          ins(eds[7+i*4],(row['금액']||0).toLocaleString());
         });
-        var titleEl=fdoc.getElementById('frame_doctitle');
-        info+='\\nframe_doctitle: '+(titleEl?'있음':'없음');
-        // BizOffice 팝업 안에 진단 오버레이 표시
-        var dbg=pd.createElement('div');
-        dbg.style.cssText='position:fixed;top:10px;right:10px;background:#1e293b;color:#e2e8f0;padding:14px 16px;border-radius:10px;font-size:11px;font-family:monospace;z-index:99999;max-width:420px;white-space:pre;line-height:1.6;max-height:80vh;overflow-y:auto;box-shadow:0 4px 24px rgba(0,0,0,.4)';
-        dbg.textContent='📋 Bill-Stack DOM 진단\\n'+'─'.repeat(30)+'\\n'+info;
-        pd.body.appendChild(dbg);
-        setTimeout(function(){if(dbg.parentNode)dbg.parentNode.removeChild(dbg);},30000);
-        showErr('진단 완료! BizOffice 팝업 오른쪽 상단에 DOM 정보가 표시됩니다. 스크린샷 찍어서 알려주세요.');
       }catch(e){if(tries>2){clearInterval(t);showErr('접근 오류: '+e.message);}}
     },500);
   }

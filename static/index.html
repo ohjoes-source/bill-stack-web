@@ -620,11 +620,42 @@ function buildBookmarklet() {
   const apiBase = API_BASE;
   const FORM_URL = 'https://gwp.ktbizoffice.com/ezApproval/DraftUI/DraftUI?formID=2020004933&formURL=2020004933.mht&DraftFlag=DRAFT&formDocType=A01003&susinSN=0&DocState=&ListType=1&AprState=&isTmpDoc=&PAGETYPE=POPUP';
   const code = `(async function(){
-  var pin=prompt('Bill-Stack PIN 입력 (앱에서 확인):');
+  // PIN 입력 오버레이 (prompt 대신 — 기업 브라우저 정책 우회)
+  var pin=await new Promise(function(resolve){
+    var ov=document.createElement('div');
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:2147483647;display:flex;align-items:center;justify-content:center;font-family:sans-serif';
+    ov.innerHTML='<div style="background:#fff;border-radius:14px;padding:32px 36px;min-width:280px;box-shadow:0 8px 40px rgba(0,0,0,.25);text-align:center">'
+      +'<div style="font-size:15px;font-weight:700;margin-bottom:6px;color:#1B4FD8">📋 Bill-Stack</div>'
+      +'<div style="font-size:13px;color:#555;margin-bottom:16px">앱에 표시된 4자리 PIN 입력</div>'
+      +'<input id="bs-pin-input" type="text" inputmode="numeric" maxlength="4" placeholder="0000"'
+      +' style="width:100%;padding:12px;font-size:28px;font-weight:800;text-align:center;letter-spacing:10px;border:2px solid #BFDBFE;border-radius:8px;outline:none;color:#1B4FD8;box-sizing:border-box">'
+      +'<div style="display:flex;gap:10px;margin-top:16px">'
+      +'<button id="bs-cancel" style="flex:1;padding:10px;border:1px solid #ddd;border-radius:8px;background:#f5f5f5;cursor:pointer;font-size:13px">취소</button>'
+      +'<button id="bs-ok" style="flex:2;padding:10px;border:none;border-radius:8px;background:#1B4FD8;color:#fff;cursor:pointer;font-size:13px;font-weight:700">확인</button>'
+      +'</div></div>';
+    document.body.appendChild(ov);
+    var inp=ov.querySelector('#bs-pin-input');
+    inp.focus();
+    function done(){var v=inp.value.trim();document.body.removeChild(ov);resolve(v||null);}
+    ov.querySelector('#bs-ok').onclick=done;
+    ov.querySelector('#bs-cancel').onclick=function(){document.body.removeChild(ov);resolve(null);};
+    inp.onkeydown=function(e){if(e.key==='Enter')done();if(e.key==='Escape'){document.body.removeChild(ov);resolve(null);}};
+  });
   if(!pin)return;
-  // 1. 팝업 먼저 열기 (prompt 직후 = 유저 제스처 유효 시점)
+  // 1. 팝업 먼저 열기 (오버레이 확인 직후 = 유저 제스처 유효 시점)
   var popup=window.open('${FORM_URL}','billstack_form','width=1300,height=900,left=60,top=40');
-  if(!popup)return alert('팝업이 차단됩니다. 이 사이트의 팝업 허용 후 다시 시도하세요.');
+  if(!popup){
+    var msg2=document.createElement('div');
+    msg2.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:2147483647;display:flex;align-items:center;justify-content:center;font-family:sans-serif';
+    msg2.innerHTML='<div style="background:#fff;border-radius:12px;padding:28px 32px;max-width:320px;text-align:center">'
+      +'<div style="font-size:18px;margin-bottom:10px">🚫</div>'
+      +'<div style="font-size:14px;font-weight:700;margin-bottom:8px">팝업이 차단됩니다</div>'
+      +'<div style="font-size:12px;color:#666;margin-bottom:16px">주소창 오른쪽 팝업 허용 아이콘을 클릭하여 허용 후 다시 시도하세요</div>'
+      +'<button style="padding:9px 24px;background:#1B4FD8;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700">확인</button></div>';
+    document.body.appendChild(msg2);
+    msg2.querySelector('button').onclick=function(){document.body.removeChild(msg2);};
+    return;
+  }
   // 2. bill-stack에서 데이터 가져오기 (팝업 로딩과 병렬)
   var d=await new Promise(function(resolve,reject){
     var iframe=document.createElement('iframe');

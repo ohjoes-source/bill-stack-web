@@ -724,12 +724,32 @@ function buildBookmarklet() {
       }catch(e){if(tries>2){clearInterval(t);showErr('접근 오류: '+e.message);}}
     },500);
   }
-  // 실행 시작: 오버레이 → 클릭 핸들러 안에서 popup.open + fetchData
-  showOv(function(pin){
-    var popup=window.open(FORM_URL,'billstack_form','width=1300,height=900,left=60,top=40');
-    if(!popup){showErr('팝업이 차단됩니다. 주소창 우측 팝업 허용 후 다시 시도하세요.');return;}
-    fetchData(pin,popup,function(d){waitAndFill(popup,d);});
-  });
+  // 실행 시작
+  var BIZ='gwp.ktbizoffice.com';
+  // BizOffice 탭에서 실행 + 이전 클릭에서 저장된 PIN 있으면 바로 진행
+  if(/^bsp\d+$/.test(window.name)&&window.location.hostname===BIZ){
+    var ap=window.name.slice(3);window.name='';
+    var pp=window.open(FORM_URL,'billstack_form','width=1300,height=900,left=60,top=40');
+    if(!pp){showErr('팝업 차단됩니다. 주소창 우측 팝업 허용 후 다시 시도하세요.');}
+    else{fetchData(ap,pp,function(d){waitAndFill(pp,d);});}
+  }else{
+    showOv(function(pin){
+      if(window.location.hostname===BIZ){
+        // BizOffice에서 직접 실행
+        var popup=window.open(FORM_URL,'billstack_form','width=1300,height=900,left=60,top=40');
+        if(!popup){showErr('팝업이 차단됩니다. 주소창 우측 팝업 허용 후 다시 시도하세요.');return;}
+        fetchData(pin,popup,function(d){waitAndFill(popup,d);});
+      }else{
+        // 다른 페이지: BizOffice 탭을 열고 window.name에 PIN 저장
+        window.open('https://'+BIZ+'/','bsp'+pin);
+        var ok=document.createElement('div');
+        ok.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#1B4FD8;color:#fff;padding:14px 24px;border-radius:10px;font-size:13px;font-weight:600;z-index:2147483647;font-family:sans-serif;max-width:420px;text-align:center;box-shadow:0 4px 16px rgba(0,0,0,.3)';
+        ok.textContent='BizOffice 탭이 열렸습니다. 그 탭에서 북마클릿을 한 번 더 클릭하세요!';
+        document.body.appendChild(ok);
+        setTimeout(function(){if(ok.parentNode)ok.parentNode.removeChild(ok);},6000);
+      }
+    });
+  }
 })()`;
 
   return 'javascript:' + encodeURIComponent(code);

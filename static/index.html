@@ -369,10 +369,8 @@ body { font-family:'Apple SD Gothic Neo','맑은 고딕',sans-serif;
 
       <div style="margin-top:20px;font-weight:800;font-size:14px;color:#1E2D45">🖊️ 기안하기 단계 순서</div>
       <ol style="margin:8px 0 0 18px">
-        <li>앱에서 <b>[BizOffice 열기 →]</b> 버튼 클릭 → 새 탭으로 BizOffice 이동</li>
-        <li>BizOffice: <b>결재 → 기안하기 → 수입지출결의서 선택 → 확인</b></li>
-        <li>양식 팝업이 열리면 북마클릿 클릭</li>
-        <li>앱에 표시된 <b>4자리 코드 입력</b> (30분 유효)</li>
+        <li>앱에서 <b>[BizOffice 열기 →]</b> 버튼 클릭 → 기안 폼이 새 탭으로 바로 열림</li>
+        <li>열린 폼 탭에서 <b>북마클릿 클릭</b> → PIN 입력 없이 즉시 자동입력 시작</li>
         <li>폼 자동 입력 완료 → 내용 확인 후 BizOffice에서 <b>기안</b></li>
       </ol>
 
@@ -611,6 +609,7 @@ function getConfirmed() {
 
 // ── 기안 (북마클릿) ──────────────────────────────────────────────
 const BIZ_URL = 'https://gwp.ktbizoffice.com/ezPortal/Main/IndexPortal';
+const FORM_URL = 'https://gwp.ktbizoffice.com/ezApproval/DraftUI/DraftUI?formID=2020004933&formURL=2020004933.mht&DraftFlag=DRAFT&formDocType=A01003&susinSN=0&DocState=&ListType=1&AprState=&isTmpDoc=&PAGETYPE=POPUP';
 const API_BASE = location.origin;
 let currentPin = null;
 
@@ -618,7 +617,6 @@ let currentPin = null;
 // BizOffice 어디서든 실행 → PIN 입력 → 기안 폼 자동 오픈 → 자동 입력
 function buildBookmarklet() {
   const apiBase = API_BASE;
-  const FORM_URL = 'https://gwp.ktbizoffice.com/ezApproval/DraftUI/DraftUI?formID=2020004933&formURL=2020004933.mht&DraftFlag=DRAFT&formDocType=A01003&susinSN=0&DocState=&ListType=1&AprState=&isTmpDoc=&PAGETYPE=POPUP';
   const code = `(function(){
   // async/await 미사용 — await 후 user gesture 소멸로 popup 차단되는 문제 방지
   var FORM_URL='${FORM_URL}';
@@ -680,8 +678,8 @@ function buildBookmarklet() {
       if(filled)return;
       if(tries>60){clearInterval(t);showErr('폼 로딩 시간 초과 (30초). 수동 입력하세요.');return;}
       try{
-        if(popup.closed){clearInterval(t);return;}
-        var pd=popup.document;
+        if(popup&&popup.closed){clearInterval(t);return;}
+        var pd=popup?popup.document:document;
         var mf=pd.getElementById('message');
         if(!mf)return;
         var fdoc=mf.contentDocument;
@@ -693,7 +691,7 @@ function buildBookmarklet() {
         var firstRowEl=rows.length ? (fdoc.querySelector('td > div > table > tbody > tr:nth-child(3) > td > div')||eds[5]) : true;
         if(!siteEl||!titleEl||!firstRowEl)return;
         filled=true;clearInterval(t);
-        popup.focus();
+        if(popup)popup.focus();
         mf.contentWindow.focus();
         function ins(el,val){
           if(!el||val==null)return;
@@ -729,9 +727,14 @@ function buildBookmarklet() {
   // BizOffice + 저장된 PIN: PIN 입력 없이 즉시 실행
   if(/^bsp\d+$/.test(window.name)&&window.location.hostname===BIZ){
     var ap=window.name.slice(3);window.name='';
-    var pp=window.open(FORM_URL,'billstack_form','width=1300,height=900,left=60,top=40');
-    if(!pp){showErr('팝업이 차단됩니다. 주소창 우측 팝업 허용 후 다시 시도하세요.');}
-    else{fetchData(ap,pp,function(d){waitAndFill(pp,d);});}
+    // 이미 폼 페이지인 경우 현재 탭에서 바로 채우기 (팝업 불필요)
+    if(document.getElementById('message')){
+      fetchData(ap,null,function(d){waitAndFill(null,d);});
+    }else{
+      var pp=window.open(FORM_URL,'billstack_form','width=1300,height=900,left=60,top=40');
+      if(!pp){showErr('팝업이 차단됩니다. 주소창 우측 팝업 허용 후 다시 시도하세요.');}
+      else{fetchData(ap,pp,function(d){waitAndFill(pp,d);});}
+    }
   }else{
     showOv(function(pin){
       if(window.location.hostname!==BIZ){
@@ -814,7 +817,12 @@ async function startReplay() {
 function openBizOffice() {
   localStorage.setItem('bs_bookmarklet_installed', '1');
   q('#bookmarklet-guide').style.display = 'none';
-  window.open(BIZ_URL, '_blank');
+  if (currentPin) {
+    // PIN을 window.name으로 전달 → 폼 탭에서 북마클릿 클릭 시 PIN 없이 즉시 자동입력
+    window.open(FORM_URL, 'bsp' + currentPin);
+  } else {
+    window.open(BIZ_URL, '_blank');
+  }
 }
 
 function showDone() {

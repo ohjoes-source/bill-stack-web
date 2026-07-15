@@ -718,6 +718,76 @@ function buildBookmarklet() {
           ins(fdoc.querySelector('tr:nth-child('+tr+') > td:nth-child(2) > div')||eds[6+i*4],row['거래처']||'');
           ins(fdoc.querySelector('tr:nth-child('+tr+') > td:nth-child(3) > div')||eds[7+i*4],(row['금액']||0).toLocaleString());
         });
+        // ── 추가 자동입력 필드 ──────────────────────────────────
+        function numToKr(n){
+          if(!n)return '영';
+          var du=['','일','이','삼','사','오','육','칠','팔','구'];
+          var pu=['','십','백','천'];
+          var bu=['','만','억','조'];
+          function seg(c){var s='';for(var i=3;i>=0;i--){var x=Math.floor(c/Math.pow(10,i))%10;if(x)s+=du[x]+pu[i];}return s;}
+          var res='',bi=0,nc=n;
+          while(nc>0){var c=nc%10000;if(c)res=seg(c)+bu[bi]+res;bi++;nc=Math.floor(nc/10000);}
+          return res;
+        }
+        var total=rows.reduce(function(s,r){return s+(parseInt(String(r['금액']).replace(/,/g,''))||0);},0);
+        var yy=String(now.getFullYear()).slice(2);
+        var mm=('0'+(now.getMonth()+1)).slice(-2);
+        var dd=('0'+now.getDate()).slice(-2);
+        var dsShort=yy+'.'+mm+'.'+dd;
+        var dsLong=now.getFullYear()+' 년 '+mm+' 월 '+dd+' 일';
+        // 1. 발의일 (YY.MM.DD)
+        ins(fdoc.querySelector('td:nth-child(2) > div'),' '+dsShort);
+        // 2. 합계
+        ins(fdoc.querySelector('tr:nth-child(8) > td:nth-child(3) > div'),total.toLocaleString()+' 원');
+        // 3. 일금 (한글 금액)
+        var ilDivs=fdoc.querySelectorAll('div');var ilFound=[];
+        for(var ii=0;ii<ilDivs.length;ii++){if(ilDivs[ii].textContent.indexOf('일금')>=0)ilFound.push(ilDivs[ii]);}
+        ins(ilFound[4],'일금  '+numToKr(total)+'원  (￦ '+total.toLocaleString()+' )');
+        // 4. 결제조건 현금
+        var cashChk=fdoc.querySelector("input[type='checkbox']");
+        if(cashChk&&!cashChk.checked){cashChk.click();try{cashChk.dispatchEvent(new mf.contentWindow.Event('change',{bubbles:true}));}catch(ex){}}
+        // 5. 영수자 왼쪽 날짜
+        ins(fdoc.querySelector('div > table > tbody > tr:nth-child(2) > td:nth-child(2) > div'),' '+dsLong);
+        // 6. 영수자
+        ins(fdoc.querySelector('tr:nth-child(2) > td:nth-child(4) > div'),(d['_author']||'')+'  ');
+        // 7. 첨부 파일
+        var attFiles=d['_files']||[];
+        if(attFiles.length){
+          var pd2=popup?popup.document:document;
+          setTimeout(function(){
+            try{
+              var tabs=pd2.querySelectorAll('[role="listitem"],li');
+              var attTab=null;
+              for(var ti=0;ti<tabs.length;ti++){if(tabs[ti].textContent.trim()==='첨부'){attTab=tabs[ti];break;}}
+              if(!attTab)return;
+              attTab.click();
+              setTimeout(function(){
+                try{
+                  var mainIf=pd2.getElementById('Main_iFrameLayer');if(!mainIf)return;
+                  var mainDoc=mainIf.contentDocument;if(!mainDoc)return;
+                  var dadIf=mainDoc.querySelector('iframe[name="dadiframe"]');if(!dadIf)return;
+                  var dadDoc=dadIf.contentDocument;if(!dadDoc)return;
+                  var fileInput=dadDoc.querySelector("input[type='file']");if(!fileInput)return;
+                  Promise.all(attFiles.map(function(f){
+                    return fetch(API_BASE+f.url).then(function(res){return res.blob();}).then(function(b){return new File([b],f.name,{type:b.type});});
+                  })).then(function(fObjs){
+                    var dt=new DataTransfer();fObjs.forEach(function(fo){dt.items.add(fo);});
+                    fileInput.files=dt.files;
+                    fileInput.dispatchEvent(new Event('change',{bubbles:true}));
+                    setTimeout(function(){
+                      var cbAll=dadDoc.querySelector('#checkboxall');
+                      if(cbAll&&!cbAll.checked)cbAll.click();
+                      setTimeout(function(){
+                        var okBtn=Array.from(mainDoc.querySelectorAll('a,button,span')).find(function(el){return el.textContent.trim()==='확인';});
+                        if(okBtn)okBtn.click();
+                      },500);
+                    },500);
+                  }).catch(function(){});
+                }catch(ex){}
+              },1500);
+            }catch(ex){}
+          },1000);
+        }
       }catch(e){if(tries>2){clearInterval(t);showErr('접근 오류: '+e.message);}}
     },500);
   }
@@ -791,7 +861,7 @@ async function startReplay() {
   draftMeta = { site: data.현장명, total: data.내역.reduce((s, r) => s + r.금액, 0) };
 
   try {
-    const r = await api('/api/draft', 'POST', { result_data: data });
+    const r = await api('/api/draft', 'POST', { result_data: data, ocr_task_id: ocrTaskId });
     currentPin = r.pin;
   } catch(e) { alert('오류: ' + e.message); return; }
 

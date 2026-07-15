@@ -27,7 +27,7 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.staticfiles import StaticFiles
 from jose import JWTError, jwt
@@ -345,10 +345,16 @@ def _register_routes(app: FastAPI):
     # ── 기안 PIN 발급 / 조회 ─────────────────────────────────────
     class DraftBody(BaseModel):
         result_data: dict
+        ocr_task_id: str | None = None
 
     @app.post("/api/draft")
     async def create_draft(body: DraftBody, user: UserInfo = Depends(_get_current_user)):
         data = {**body.result_data, "_author": user.author, "_username": user.username}
+        if body.ocr_task_id:
+            with _lock:
+                fp = _tasks.get(body.ocr_task_id, {}).get("file_paths", [])
+            if fp:
+                data["_file_paths"] = [str(p) for p in fp]
         pin = _new_draft_pin(data)
         return {"pin": pin}
 
@@ -365,7 +371,26 @@ def _register_routes(app: FastAPI):
                 drafts.pop(pin, None)
                 _save_drafts(drafts)
             return {"error": "코드가 만료됐습니다"}
-        return draft["data"]
+        result = dict(draft["data"])
+        file_paths = result.get("_file_paths", [])
+        if file_paths:
+            result["_files"] = [
+                {"name": Path(fp).name, "url": f"/api/draft/{pin}/file/{Path(fp).name}"}
+                for fp in file_paths if Path(fp).exists()
+            ]
+        return result
+
+    @app.get("/api/draft/{pin}/file/{filename}")
+    async def get_draft_file(pin: str, filename: str):
+        with _lock:
+            drafts = _load_drafts()
+            draft = drafts.get(pin)
+        if not draft:
+            raise HTTPException(status_code=404, detail="not found")
+        for fp in draft["data"].get("_file_paths", []):
+            if Path(fp).name == filename and Path(fp).exists():
+                return FileResponse(str(fp), filename=filename)
+        raise HTTPException(status_code=404, detail="file not found")
 
     # ── Replay 스킬 ──────────────────────────────────────────────
     class ReplayBody(BaseModel):

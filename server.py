@@ -477,6 +477,9 @@ def _sse(tid: str) -> StreamingResponse:
     return StreamingResponse(generate(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
+    # 정적 파일 서빙 (이미지 등) — 반드시 라우트 정의 마지막에 위치
+    app.mount("/", StaticFiles(directory=BASE_DIR / "static"), name="static_assets")
+
 
 # ── 독립 실행 ────────────────────────────────────────────────────
 app = create_app()

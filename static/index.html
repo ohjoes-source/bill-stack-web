@@ -538,15 +538,18 @@ async function startOcr() {
 
 // ── 결과 확인 ────────────────────────────────────────────────────
 function showConfirm(rows) {
-  q('#confirm-tbody').innerHTML = rows.map((r, i) => `
+  q('#confirm-tbody').innerHTML = rows.map((r, i) => {
+    const fname = files[i] ? files[i].name.replace(/\.[^/.]+$/, '') : (r.적요 || '');
+    return `
     <tr>
-      <td><input type="text"   data-i="${i}" data-f="적요"   value="${esc(r.적요||'')}"/></td>
+      <td><input type="text"   data-i="${i}" data-f="적요"   value="${esc(fname)}"/></td>
       <td><input type="text"   data-i="${i}" data-f="거래처" value="${esc(r.거래처||'')}"/></td>
       <td><input type="number" data-i="${i}" data-f="금액"   value="${r.금액||0}"
                 style="text-align:right" oninput="calcTotal()"/></td>
       <td><button style="background:none;border:none;cursor:pointer;color:#bbb"
                   onclick="this.closest('tr').remove();calcTotal()">✕</button></td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
   calcTotal();
   goStep(3);
 }

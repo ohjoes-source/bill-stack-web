@@ -814,15 +814,33 @@ async function startReplay() {
   q('#replay-done-row').style.display = '';
 }
 
+function showPortalGuide() {
+  const pin = currentPin || '(먼저 자동 입력을 시작하세요)';
+  const guide = window.open('', 'billstack_portal_guide', 'width=420,height=520,left=80,top=80');
+  const html = `<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>Bill-Stack 안내</title>
+    <style>body{font-family:Arial,sans-serif;margin:0;padding:28px;color:#1e2d45;background:#f7f9ff}h2{margin:0 0 18px;color:#1b4fd8;font-size:20px}.pin{font-size:42px;font-weight:900;letter-spacing:10px;text-align:center;color:#1b4fd8;background:#fff;border:1px solid #bfdbfe;border-radius:12px;padding:16px;margin:12px 0 20px}.step{line-height:1.8;font-size:14px}.note{margin-top:18px;padding:12px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;font-size:12px;color:#9a3412}</style></head><body>
+    <h2>📋 Bill-Stack 자동입력</h2><div>BizOffice 포털에서 북마클릿을 클릭하세요.</div><div class="pin">${pin}</div>
+    <div class="step">1. BizOffice 메인 화면에서 <b>BizOffice 자동입력</b> 북마클릿 클릭<br>2. 위 PIN 입력<br>3. 지출결의서 팝업이 열리면 자동작성</div>
+    <div class="note">북마클릿은 BizOffice 화면에서 한 번 클릭해야 실행됩니다.</div></body></html>`;
+  if (guide) {
+    guide.document.open();
+    guide.document.write(html);
+    guide.document.close();
+    guide.focus();
+  } else {
+    alert('BizOffice는 열렸습니다. BizOffice 화면에서 북마클릿을 클릭한 뒤 PIN ' + pin + '을 입력하세요.');
+  }
+}
+
 function openBizOffice() {
   localStorage.setItem('bs_bookmarklet_installed', '1');
   q('#bookmarklet-guide').style.display = 'none';
-  if (currentPin) {
-    // PIN을 window.name으로 전달 → 폼 탭에서 북마클릿 클릭 시 PIN 없이 즉시 자동입력
-    window.open(FORM_URL, 'bsp' + currentPin);
-  } else {
-    window.open(BIZ_URL, '_blank');
+  const portal = window.open(BIZ_URL, '_blank');
+  if (!portal) {
+    alert('BizOffice 팝업이 차단되었습니다. 팝업을 허용한 뒤 다시 클릭하세요.');
+    return;
   }
+  showPortalGuide();
 }
 
 function showDone() {

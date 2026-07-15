@@ -310,18 +310,15 @@ body { font-family:'Apple SD Gothic Neo','맑은 고딕',sans-serif;
 
       <!-- 순서 안내 -->
       <ol id="replay-steps" style="display:none;font-size:13px;color:#3A4A6B;line-height:2;padding-left:20px;margin-bottom:18px">
-        <li>BizOffice <b>메인 페이지</b>에서 북마클릿 클릭 → 코드 입력</li>
-        <li>"준비됐습니다" 확인 후 <b>결재 → 기안하기 → 수입지출결의서 → 확인</b></li>
-        <li>팝업이 열리면 <b>자동으로 폼 입력됨</b></li>
+        <li><b>[BizOffice 열기 →]</b> 클릭 → BizOffice 포털과 안내 팝업 열림</li>
+        <li>BizOffice 메인 화면에서 북마클릿 클릭 → 안내 팝업의 PIN 입력</li>
+        <li>지출결의서 팝업이 열리면 <b>OCR 데이터 자동작성</b></li>
         <li>내용 확인 후 BizOffice에서 직접 <b>기안</b></li>
       </ol>
 
       <div class="btn-row">
         <button class="btn-secondary" onclick="goStep(3)">← 뒤로</button>
         <button class="btn-submit" id="btn-open-biz" onclick="openBizOffice()">BizOffice 열기 →</button>
-      </div>
-      <div id="replay-done-row" style="display:none;text-align:center;margin-top:12px">
-        <button class="btn-primary" style="max-width:220px;margin:0 auto" onclick="showDone()">기안 완료 확인 →</button>
       </div>
     </div>
 
@@ -351,7 +348,7 @@ body { font-family:'Apple SD Gothic Neo','맑은 고딕',sans-serif;
         <li><b>SEON 포털 또는 BizOffice</b>에서 "영수증 OCR" 카드 클릭 → 자동 로그인</li>
         <li>영수증 파일(JPG, PNG, PDF) 업로드 → <b>OCR 분석</b></li>
         <li>결과 확인 · 수정 → <b>현장명 입력</b></li>
-        <li><b>기안하기</b> 클릭 → BizOffice에서 북마클릿 실행 → 자동 입력</li>
+         <li><b>기안하기</b> 클릭 → BizOffice 포털과 안내 팝업 열림</li>
       </ol>
 
       <div style="margin-top:20px;font-weight:800;font-size:14px;color:#1E2D45">📌 북마클릿 최초 설치 (1회만)</div>
@@ -369,9 +366,10 @@ body { font-family:'Apple SD Gothic Neo','맑은 고딕',sans-serif;
 
       <div style="margin-top:20px;font-weight:800;font-size:14px;color:#1E2D45">🖊️ 기안하기 단계 순서</div>
       <ol style="margin:8px 0 0 18px">
-        <li>앱에서 <b>[BizOffice 열기 →]</b> 버튼 클릭 → 기안 폼이 새 탭으로 바로 열림</li>
-        <li>열린 폼 탭에서 <b>북마클릿 클릭</b> → PIN 입력 없이 즉시 자동입력 시작</li>
-        <li>폼 자동 입력 완료 → 내용 확인 후 BizOffice에서 <b>기안</b></li>
+        <li>앱에서 <b>[BizOffice 열기 →]</b> 클릭 → BizOffice 포털과 안내 팝업 확인</li>
+        <li>BizOffice 메인 화면에서 <b>북마클릿 클릭</b> → 안내 팝업에 표시된 PIN 입력</li>
+        <li>지출결의서 팝업이 열리면 OCR 데이터가 자동작성됨</li>
+        <li>내용 확인 후 BizOffice에서 <b>기안</b></li>
       </ol>
 
       <div style="margin-top:20px;font-weight:800;font-size:14px;color:#1E2D45">⚠️ 자주 묻는 질문</div>
@@ -389,7 +387,7 @@ body { font-family:'Apple SD Gothic Neo','맑은 고딕',sans-serif;
       </div>
       <div style="margin-top:10px">
         <b>Q. 자동입력이 안 돼요</b><br>
-        → 수입지출결의서 양식이 완전히 열린 뒤 북마클릿을 클릭해주세요.
+        → BizOffice 메인 화면에서 북마클릿을 클릭하고, 안내 팝업의 PIN을 입력해주세요.
       </div>
 
       <div style="margin-top:20px;padding:12px 16px;background:#F0F4FF;border-radius:8px;font-size:12px;color:#5A6A85">
@@ -781,7 +779,6 @@ async function testBookmarkletOnly() {
     q('#bookmarklet-guide').style.display = localStorage.getItem('bs_bookmarklet_installed') ? 'none' : '';
     q('#draft-pin-box').style.display = '';
     q('#replay-steps').style.display = '';
-    q('#replay-done-row').style.display = 'none';
     goStep(4);
   } catch(e) { alert('오류: ' + e.message); }
 }
@@ -811,25 +808,21 @@ async function startReplay() {
   q('#bookmarklet-guide').style.display = installed ? 'none' : '';
   q('#draft-pin-box').style.display = '';
   q('#replay-steps').style.display = '';
-  q('#replay-done-row').style.display = '';
 }
 
 function showPortalGuide() {
   const pin = currentPin || '(먼저 자동 입력을 시작하세요)';
   const guide = window.open('', 'billstack_portal_guide', 'width=420,height=520,left=80,top=80');
   const html = `<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>Bill-Stack 안내</title>
-    <style>body{font-family:Arial,sans-serif;margin:0;padding:28px;color:#1e2d45;background:#f7f9ff}h2{margin:0 0 18px;color:#1b4fd8;font-size:20px}.pin{font-size:42px;font-weight:900;letter-spacing:10px;text-align:center;color:#1b4fd8;background:#fff;border:1px solid #bfdbfe;border-radius:12px;padding:16px;margin:12px 0 20px}.step{line-height:1.8;font-size:14px}.note{margin-top:18px;padding:12px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;font-size:12px;color:#9a3412}.bookmark{display:block;margin-top:18px;padding:11px 16px;background:#1b4fd8;color:#fff;border-radius:8px;text-align:center;text-decoration:none;font-weight:700;font-size:14px}.bookmark-note{text-align:center;margin-top:7px;color:#5a6a85;font-size:11px}</style></head><body>
+    <style>body{font-family:Arial,sans-serif;margin:0;padding:28px;color:#1e2d45;background:#f7f9ff}h2{margin:0 0 18px;color:#1b4fd8;font-size:20px}.pin{font-size:42px;font-weight:900;letter-spacing:10px;text-align:center;color:#1b4fd8;background:#fff;border:1px solid #bfdbfe;border-radius:12px;padding:16px;margin:12px 0 20px}.step{line-height:1.8;font-size:14px}.note{margin-top:18px;padding:12px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;font-size:12px;color:#9a3412}</style></head><body>
     <h2>📋 Bill-Stack 자동입력</h2><div>BizOffice 포털에서 북마클릿을 클릭하세요.</div><div class="pin">${pin}</div>
     <div class="step">1. BizOffice 메인 화면에서 <b>BizOffice 자동입력</b> 북마클릿 클릭<br>2. 위 PIN 입력<br>3. 지출결의서 팝업이 열리면 자동작성</div>
     <div class="note">북마클릿은 BizOffice 화면에서 한 번 클릭해야 실행됩니다.</div>
-    <a id="portal-bookmarklet" class="bookmark" href="#" draggable="true">📋 BizOffice 자동입력</a>
-    <div class="bookmark-note">버튼을 북마크바로 드래그해서 설치하세요.</div></body></html>`;
+    </body></html>`;
   if (guide) {
     guide.document.open();
     guide.document.write(html);
     guide.document.close();
-    const bm = guide.document.getElementById('portal-bookmarklet');
-    if (bm) bm.href = buildBookmarklet();
     guide.focus();
   } else {
     alert('BizOffice는 열렸습니다. BizOffice 화면에서 북마클릿을 클릭한 뒤 PIN ' + pin + '을 입력하세요.');

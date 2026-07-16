@@ -821,7 +821,6 @@ async function startReplay() {
   // 북마클릿 링크 세팅
   const bmHref = buildBookmarklet();
   q('#bookmarklet-link').href = bmHref;
-  q('#qs-bookmarklet-link').href = bmHref;
   const hl2 = q('#help-bookmarklet-link'); if (hl2) hl2.href = bmHref;
   q('#draft-pin').textContent = currentPin;
 
